@@ -1,0 +1,13 @@
+[package]
+name = "rust_ios_lib"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "rust_ios_lib"
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+libc = "0.2"
+
+[target.'cfg(target_os = "ios")'.dependencies]
