@@ -7,7 +7,23 @@ edition = "2021"
 name = "rust_ios_lib"
 crate-type = ["staticlib", "cdylib"]
 
+[[bin]]
+name = "crypto_server"
+path = "src/server.rs"
+
+[[bin]]
+name = "test_api"
+path = "src/test_api.rs"
+
 [dependencies]
 libc = "0.2"
+actix-web = "4.4"
+reqwest = { version = "0.11", features = ["json"] }
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+log = "0.4"
+env_logger = "0.10"
+dotenv = "0.15"
 
 [target.'cfg(target_os = "ios")'.dependencies]

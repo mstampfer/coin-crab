@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 char* hello_rust_world(void);
+char* get_latest_crypto_prices(const char* endpoint);
 void free_string(char* s);
 
 #ifdef __cplusplus

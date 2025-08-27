@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		ABCD1234567890AB /* RustHelloAppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD1234567890AA /* RustHelloAppApp.swift */; };
+		ABCD1234567890AB /* CoinCrabApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD1234567890AA /* CoinCrabApp.swift */; };
 		ABCD1234567890AD /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD1234567890AC /* ContentView.swift */; };
 		ABCD1234567890AF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ABCD1234567890AE /* Assets.xcassets */; };
 		ABCD1234567890B2 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ABCD1234567890B1 /* Preview Assets.xcassets */; };
@@ -15,13 +15,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		ABCD1234567890A7 /* RustHelloApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RustHelloApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		ABCD1234567890AA /* RustHelloAppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RustHelloAppApp.swift; sourceTree = "<group>"; };
+		ABCD1234567890A7 /* CoinCrab.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CoinCrab.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		ABCD1234567890AA /* CoinCrabApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoinCrabApp.swift; sourceTree = "<group>"; };
 		ABCD1234567890AC /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		ABCD1234567890AE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		ABCD1234567890B1 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		ABCD1234567890B5 /* rust_ios_lib.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = rust_ios_lib.h; path = ../rust_ios_lib.h; sourceTree = "<group>"; };
-		ABCD1234567890B7 /* RustHelloApp-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "RustHelloApp-Bridging-Header.h"; sourceTree = "<group>"; };
+		ABCD1234567890B7 /* CoinCrab-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "CoinCrab-Bridging-Header.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -38,7 +38,7 @@
 		ABCD12345678909E /* */ = {
 			isa = PBXGroup;
 			children = (
-				ABCD1234567890A9 /* RustHelloApp */,
+				ABCD1234567890A9 /* CoinCrab */,
 				ABCD1234567890A8 /* Products */,
 				ABCD1234567890BC /* Frameworks */,
 			);
@@ -47,21 +47,21 @@
 		ABCD1234567890A8 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				ABCD1234567890A7 /* RustHelloApp.app */,
+				ABCD1234567890A7 /* CoinCrab.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		ABCD1234567890A9 /* RustHelloApp */ = {
+		ABCD1234567890A9 /* CoinCrab */ = {
 			isa = PBXGroup;
 			children = (
-				ABCD1234567890AA /* RustHelloAppApp.swift */,
+				ABCD1234567890AA /* CoinCrabApp.swift */,
 				ABCD1234567890AC /* ContentView.swift */,
 				ABCD1234567890AE /* Assets.xcassets */,
 				ABCD1234567890B0 /* Preview Content */,
-				ABCD1234567890B7 /* RustHelloApp-Bridging-Header.h */,
+				ABCD1234567890B7 /* CoinCrab-Bridging-Header.h */,
 			);
-			path = RustHelloApp;
+			path = CoinCrab;
 			sourceTree = "<group>";
 		};
 		ABCD1234567890B0 /* Preview Content */ = {
@@ -94,9 +94,9 @@
 /* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
-		ABCD1234567890A6 /* RustHelloApp */ = {
+		ABCD1234567890A6 /* CoinCrab */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = ABCD1234567890B8 /* Build configuration list for PBXNativeTarget "RustHelloApp" */;
+			buildConfigurationList = ABCD1234567890B8 /* Build configuration list for PBXNativeTarget "CoinCrab" */;
 			buildPhases = (
 				ABCD1234567890A3 /* Sources */,
 				ABCD1234567890A4 /* Frameworks */,
@@ -107,9 +107,9 @@
 			);
 			dependencies = (
 			);
-			name = RustHelloApp;
-			productName = RustHelloApp;
-			productReference = ABCD1234567890A7 /* RustHelloApp.app */;
+			name = CoinCrab;
+			productName = CoinCrab;
+			productReference = ABCD1234567890A7 /* CoinCrab.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -127,7 +127,7 @@
 					};
 				};
 			};
-			buildConfigurationList = ABCD1234567890A2 /* Build configuration list for PBXProject "RustHelloApp" */;
+			buildConfigurationList = ABCD1234567890A2 /* Build configuration list for PBXProject "CoinCrab" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -140,7 +140,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				ABCD1234567890A6 /* RustHelloApp */,
+				ABCD1234567890A6 /* CoinCrab */,
 			);
 		};
 /* End PBXProject section */
@@ -163,7 +163,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				ABCD1234567890AD /* ContentView.swift in Sources */,
-				ABCD1234567890AB /* RustHelloAppApp.swift in Sources */,
+				ABCD1234567890AB /* CoinCrabApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -296,7 +296,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"RustHelloApp/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"CoinCrab/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -314,10 +314,10 @@
 				);
 				OTHER_LDFLAGS = "-lrust_ios_lib";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.RustHelloApp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.CoinCrab;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "RustHelloApp/RustHelloApp-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "CoinCrab/CoinCrab-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -330,7 +330,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"RustHelloApp/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"CoinCrab/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -348,10 +348,10 @@
 				);
 				OTHER_LDFLAGS = "-lrust_ios_lib";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.RustHelloApp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.CoinCrab;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "RustHelloApp/RustHelloApp-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "CoinCrab/CoinCrab-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -360,7 +360,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		ABCD1234567890A2 /* Build configuration list for PBXProject "RustHelloApp" */ = {
+		ABCD1234567890A2 /* Build configuration list for PBXProject "CoinCrab" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				ABCD1234567890A0 /* Debug */,
@@ -369,7 +369,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		ABCD1234567890B8 /* Build configuration list for PBXNativeTarget "RustHelloApp" */ = {
+		ABCD1234567890B8 /* Build configuration list for PBXNativeTarget "CoinCrab" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				ABCD1234567890B9 /* Debug */,
