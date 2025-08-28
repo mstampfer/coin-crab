@@ -1,44 +1,44 @@
 # 🦀 Coin Crab
 
-A modern iOS cryptocurrency tracking app built with SwiftUI frontend and Rust backend, featuring real-time price updates, animated price changes, and professional market data visualization.
+A modern iOS cryptocurrency tracking app built with Rust and SwiftUI, featuring real-time price updates, animated price changes, and professional market data visualization.
 
 <div align="center">
-  
-[![Swift](https://img.shields.io/badge/Swift-5.9-orange.svg)](https://swift.org/)
+
 [![Rust](https://img.shields.io/badge/Rust-1.70+-red.svg)](https://rust-lang.org/)
+[![Swift](https://img.shields.io/badge/Swift-5.9-orange.svg)](https://swift.org/)
 [![iOS](https://img.shields.io/badge/iOS-17.0+-blue.svg)](https://developer.apple.com/ios/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 </div>
 
-## ✨ Features
+## Features
 
-### 📱 **Modern iOS Interface**
+### **Modern iOS Interface**
 - **Dark Theme**: Professional cryptocurrency market aesthetic
 - **Real-time Data**: Live price updates every 30 seconds
 - **Animated Prices**: Color-coded price change animations (green ↑, red ↓)
 - **Market Overview**: Statistics cards for market cap, indices, and sentiment
 - **Tab Navigation**: Full app structure with Markets, Alpha, Search, Portfolio, Community
 
-### 🚀 **Real Cryptocurrency Icons**
+### **Real Cryptocurrency Icons**
 - Authentic crypto logos loaded from multiple reliable sources
 - Intelligent fallback system with brand-accurate colors
 - Smart caching for optimal performance
 - Support for 20+ major cryptocurrencies
 
-### 💹 **Advanced Market Features**
+### **Advanced Market Features**
 - **Market Insights**: AI-powered market analysis prompts
 - **Filter Controls**: Sort by price, market cap, 24h changes
 - **Mini Charts**: Price trend visualizations for each coin
 - **Professional Layout**: Ranking, market caps, and percentage changes
 
-### ⚡ **Rust-Powered Backend**
+### **Rust-Powered Backend**
 - High-performance cryptocurrency API integration
 - Concurrent request handling with Actix Web
 - Built-in caching and rate limiting
 - Cross-platform iOS library compilation
 
-## 🛠 Tech Stack
+## Tech Stack
 
 - **Frontend**: SwiftUI, iOS 17+
 - **Backend**: Rust, Actix Web, Tokio
@@ -46,7 +46,7 @@ A modern iOS cryptocurrency tracking app built with SwiftUI frontend and Rust ba
 - **Architecture**: FFI bridge between Swift and Rust
 - **Build System**: Xcode + Cargo
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 coin-crab-app/
@@ -68,7 +68,7 @@ coin-crab-app/
 └── Cargo.toml                 # Rust dependencies
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -109,7 +109,7 @@ coin-crab-app/
    - Select your target device or simulator
    - Press `⌘+R` to build and run
 
-## ⚙️ Configuration
+## Configuration
 
 ### Environment Variables
 Create a `.env` file in the project root:
@@ -126,7 +126,7 @@ The app uses multiple cryptocurrency data sources:
 - **CryptoIcons.org**: Cryptocurrency logos
 - **CoinCap**: Backup price source
 
-## 📊 Architecture
+## Architecture
 
 ### iOS Frontend
 ```
@@ -154,7 +154,7 @@ API Requests → Data Processing → Caching → FFI Export → iOS
 - **`PriceChangeTracker`**: Monitors and animates price movements
 - **`IconCache`**: Efficient logo caching system
 
-## 🎨 Design Philosophy
+## Design Philosophy
 
 ### Color System
 - **Background**: Pure black (#000000)
@@ -169,7 +169,7 @@ API Requests → Data Processing → Caching → FFI Export → iOS
 - **Subtle effects**: 5% scale increase for emphasis
 - **Performance first**: Optimized for smooth scrolling
 
-## 🔧 Development
+## Development
 
 ### Running Tests
 ```bash
@@ -202,7 +202,7 @@ Update the symbol mappings in `ContentView.swift`:
 "NEWCOIN": Color.purple
 ```
 
-## 📈 Performance
+## Performance
 
 - **Startup time**: < 2 seconds
 - **Price updates**: 30-second intervals
@@ -210,7 +210,7 @@ Update the symbol mappings in `ContentView.swift`:
 - **Network**: Efficient API caching
 - **Animations**: 60 FPS smooth transitions
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -224,18 +224,18 @@ Update the symbol mappings in `ContentView.swift`:
 - Add tests for new features
 - Update documentation for API changes
 
-## 📝 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **CoinMarketCap** for cryptocurrency data
 - **CryptoIcons.org** for cryptocurrency logos
 - **Rust Community** for excellent async libraries
 - **Apple** for SwiftUI and iOS development tools
 
-## 🐛 Issues & Support
+## Issues & Support
 
 Found a bug or have a feature request? Please [open an issue](https://github.com/yourusername/coin-crab-app/issues).
 
@@ -244,8 +244,6 @@ For questions and discussions, check out our [Discussions](https://github.com/yo
 ---
 
 <div align="center">
-
-**Built with ❤️ using Swift & Rust**
 
 [Report Bug](https://github.com/yourusername/coin-crab-app/issues) •
 [Request Feature](https://github.com/yourusername/coin-crab-app/issues) •
