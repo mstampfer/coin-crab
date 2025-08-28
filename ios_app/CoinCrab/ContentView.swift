@@ -630,8 +630,12 @@ struct AnimatedPriceView: View {
 struct ModernCryptoCurrencyRowView: View {
     let cryptocurrency: CryptoCurrency
     let rank: Int
+    @State private var showingChart = false
     
     var body: some View {
+        Button(action: {
+            showingChart = true
+        }) {
         HStack(spacing: 12) {
             // Rank
             Text("\(rank)")
@@ -679,9 +683,14 @@ struct ModernCryptoCurrencyRowView: View {
             MiniChartView(isPositive: cryptocurrency.quote.USD.percent_change_24h >= 0)
                 .frame(width: 60, height: 30)
         }
+        }
+        .buttonStyle(PlainButtonStyle())
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(Color.clear)
+        .sheet(isPresented: $showingChart) {
+            CryptoChartView(cryptocurrency: cryptocurrency)
+        }
     }
     
     private func formatMarketCap(_ marketCap: Double) -> String {

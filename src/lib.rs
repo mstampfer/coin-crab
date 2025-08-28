@@ -3,6 +3,18 @@ use std::os::raw::c_char;
 use serde::{Deserialize, Serialize};
 use tokio::runtime::Runtime;
 
+#[cfg(test)]
+mod test_historical;
+
+#[cfg(test)]
+mod test_c_function;
+
+#[cfg(test)]
+mod test_timeframes;
+
+#[cfg(test)]
+mod test_specific_symbols;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CryptoCurrency {
     pub id: i32,
@@ -86,48 +98,6 @@ async fn fetch_crypto_data(endpoint: &str) -> CryptoClientResult {
     }
 }
 
-async fn fetch_historical_data(endpoint: &str) -> HistoricalDataResult {
-    let client = reqwest::Client::new();
-    
-    match client.get(endpoint).send().await {
-        Ok(response) => {
-            if response.status().is_success() {
-                match response.json::<HistoricalApiResponse>().await {
-                    Ok(api_response) => HistoricalDataResult {
-                        success: true,
-                        data: api_response.data,
-                        error: None,
-                        symbol: Some(api_response.symbol),
-                        timeframe: Some(api_response.timeframe),
-                    },
-                    Err(e) => HistoricalDataResult {
-                        success: false,
-                        data: Vec::new(),
-                        error: Some(format!("JSON parsing error: {}", e)),
-                        symbol: None,
-                        timeframe: None,
-                    },
-                }
-            } else {
-                HistoricalDataResult {
-                    success: false,
-                    data: Vec::new(),
-                    error: Some(format!("HTTP error: {}", response.status())),
-                    symbol: None,
-                    timeframe: None,
-                }
-            }
-        }
-        Err(e) => HistoricalDataResult {
-            success: false,
-            data: Vec::new(),
-            error: Some(format!("Network error: {}", e)),
-            symbol: None,
-            timeframe: None,
-        },
-    }
-}
-
 #[no_mangle]
 pub extern "C" fn get_latest_crypto_prices(endpoint: *const c_char) -> *mut c_char {
     let c_str = unsafe { CStr::from_ptr(endpoint) };
@@ -146,15 +116,11 @@ pub extern "C" fn get_latest_crypto_prices(endpoint: *const c_char) -> *mut c_ch
 }
 
 #[no_mangle]
-pub extern "C" fn hello_rust_world() -> *mut c_char {
-    let hello = CString::new("Hello, New Rust World!").unwrap();
-    hello.into_raw()
-}
-
-#[no_mangle]
 pub extern "C" fn free_string(s: *mut c_char) {
     unsafe {
-        if s.is_null() { return }
+        if s.is_null() {
+            return;
+        }
         let _ = CString::from_raw(s);
-    };
+    }
 }
