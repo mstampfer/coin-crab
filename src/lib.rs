@@ -86,6 +86,48 @@ async fn fetch_crypto_data(endpoint: &str) -> CryptoClientResult {
     }
 }
 
+async fn fetch_historical_data(endpoint: &str) -> HistoricalDataResult {
+    let client = reqwest::Client::new();
+    
+    match client.get(endpoint).send().await {
+        Ok(response) => {
+            if response.status().is_success() {
+                match response.json::<HistoricalApiResponse>().await {
+                    Ok(api_response) => HistoricalDataResult {
+                        success: true,
+                        data: api_response.data,
+                        error: None,
+                        symbol: Some(api_response.symbol),
+                        timeframe: Some(api_response.timeframe),
+                    },
+                    Err(e) => HistoricalDataResult {
+                        success: false,
+                        data: Vec::new(),
+                        error: Some(format!("JSON parsing error: {}", e)),
+                        symbol: None,
+                        timeframe: None,
+                    },
+                }
+            } else {
+                HistoricalDataResult {
+                    success: false,
+                    data: Vec::new(),
+                    error: Some(format!("HTTP error: {}", response.status())),
+                    symbol: None,
+                    timeframe: None,
+                }
+            }
+        }
+        Err(e) => HistoricalDataResult {
+            success: false,
+            data: Vec::new(),
+            error: Some(format!("Network error: {}", e)),
+            symbol: None,
+            timeframe: None,
+        },
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn get_latest_crypto_prices(endpoint: *const c_char) -> *mut c_char {
     let c_str = unsafe { CStr::from_ptr(endpoint) };
