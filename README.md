@@ -115,10 +115,14 @@ coin-crab-app/
 Create a `.env` file in the project root:
 
 ```env
-COINMARKETCAP_API_KEY=your_api_key_here
-SERVER_PORT=8080
-CACHE_DURATION=30
+CMC_API_KEY=your_coinmarketcap_api_key_here
+RUST_LOG=info
 ```
+
+**Important Security Notes:**
+- Never commit the `.env` file to git (it's already in .gitignore)
+- Use `.env.example` as a template
+- Get your API key from: https://coinmarketcap.com/api/
 
 ### API Configuration
 The app uses multiple cryptocurrency data sources:

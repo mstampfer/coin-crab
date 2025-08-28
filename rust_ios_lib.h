@@ -6,7 +6,10 @@ extern "C" {
 #endif
 
 char* hello_rust_world(void);
+char* test_ios_connectivity(void);
 char* get_latest_crypto_prices(const char* endpoint);
+char* get_historical_crypto_data(const char* endpoint);
+char* get_historical_crypto_data_with_key(const char* endpoint, const char* api_key);
 void free_string(char* s);
 
 #ifdef __cplusplus
