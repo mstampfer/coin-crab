@@ -1,5 +1,5 @@
 /.env.server
-/.idea
+.idea/
 /target
 /ios_app/RustHelloApp.xcodeproj
 /.DS_Store
