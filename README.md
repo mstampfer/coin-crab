@@ -32,19 +32,41 @@ A modern iOS cryptocurrency tracking app built with Rust and SwiftUI, featuring 
 - **Mini Charts**: Price trend visualizations for each coin
 - **Professional Layout**: Ranking, market caps, and percentage changes
 
-### **Rust-Powered Backend**
-- High-performance cryptocurrency API integration
-- Concurrent request handling with Actix Web
-- Built-in caching and rate limiting
-- Cross-platform iOS library compilation
+### **Secure Server Architecture**
+- MQTT-based real-time communication
+- Server-side CoinMarketCap API integration for security
+- No API keys stored on client devices
+- High-performance Rust MQTT broker with rumqttd
 
 ## Tech Stack
 
 - **Frontend**: SwiftUI, iOS 17+
-- **Backend**: Rust, Actix Web, Tokio
-- **APIs**: CoinMarketCap, multiple icon providers
-- **Architecture**: FFI bridge between Swift and Rust
+- **Client & Server**: **100% Rust** - Both MQTT client (iOS library) and server written in Rust
+- **Communication**: MQTT message broker for real-time updates
+- **APIs**: CoinMarketCap (server-side only), multiple icon providers
+- **Architecture**: Rust-to-Rust MQTT communication with Swift FFI bridge
 - **Build System**: Xcode + Cargo
+
+### Rust Dependencies
+
+**Core Libraries:**
+- `tokio` - Async runtime for all async operations
+- `serde` + `serde_json` - JSON serialization/deserialization
+- `chrono` - Date/time handling with timestamps
+- `libc` - C FFI bindings for iOS integration
+- `dotenv` - Environment variable loading
+
+**MQTT Communication:**
+- `rumqttc` - High-performance MQTT client
+- `rumqttd` - Embedded MQTT broker
+- `toml` - MQTT broker configuration parsing
+
+**HTTP & API:**
+- `reqwest` - HTTP client for CoinMarketCap API
+- `actix-web` - Web framework (development server)
+
+**Utilities:**
+- `log` + `env_logger` - Structured logging system
 
 ## Project Structure
 
@@ -58,11 +80,15 @@ coin-crab-app/
 │       ├── CoinCrab-Bridging-Header.h
 │       └── Assets.xcassets/    # App icons and assets
 ├── src/                        # Rust backend source
-│   ├── lib.rs                  # FFI library for iOS
-│   ├── server.rs               # Development server
+│   ├── lib.rs                  # MQTT client library for iOS
+│   ├── server.rs               # MQTT server with CMC API integration
 │   └── test_api.rs             # API testing utilities
 ├── target/                     # Rust build artifacts
 │   └── universal/release/      # iOS universal libraries
+├── .env.client                 # Client environment (MQTT broker host)
+├── .env.server                 # Server environment (API keys - git ignored)
+├── .env.example                # Environment template
+├── rumqttd.toml                # MQTT broker configuration
 ├── build_ios.sh               # iOS library build script
 ├── rust_ios_lib.h             # C header for Swift interop
 └── Cargo.toml                 # Rust dependencies
@@ -100,27 +126,52 @@ coin-crab-app/
    open ios_app/CoinCrab.xcodeproj
    ```
 
-4. **Start the development server** (optional)
+4. **Set up environment files**
+   ```bash
+   # Copy and configure server environment (with your API key)
+   cp .env.example .env.server
+   # Edit .env.server and add your CoinMarketCap API key
+   
+   # Client environment is already configured in .env.client
+   ```
+
+5. **Start the MQTT server**
    ```bash
    cargo run --bin crypto_server
    ```
+   This will start both the MQTT broker and the data publishing service.
 
-5. **Build and run the iOS app**
+6. **Build and run the iOS app**
    - Select your target device or simulator
    - Press `⌘+R` to build and run
+   - The app will connect to the MQTT broker for real-time updates
 
 ## Configuration
 
 ### Environment Variables
-Create a `.env` file in the project root:
 
+The app uses separate environment files for security:
+
+**Client Configuration** (`.env.client` - safe to commit):
 ```env
+# MQTT Broker Configuration
+# For iOS device testing, set this to your machine's IP address
+# For local development/simulator, use 127.0.0.1
+MQTT_BROKER_HOST=127.0.0.1
+```
+
+**Server Configuration** (`.env.server` - git ignored):
+```env
+# CoinMarketCap API Configuration
 CMC_API_KEY=your_coinmarketcap_api_key_here
-RUST_LOG=info
+
+# MQTT Broker Configuration
+MQTT_BROKER_HOST=127.0.0.1
 ```
 
 **Important Security Notes:**
-- Never commit the `.env` file to git (it's already in .gitignore)
+- The `.env.server` file is git-ignored and contains sensitive API keys
+- Only the server needs the CMC API key - clients never see it
 - Use `.env.example` as a template
 - Get your API key from: https://coinmarketcap.com/api/
 
@@ -132,23 +183,28 @@ The app uses multiple cryptocurrency data sources:
 
 ## Architecture
 
-### iOS Frontend
+### Rust-Powered MQTT Client-Server Architecture
 ```
-SwiftUI Views
-     ↓
-AnimatedPriceView ←→ PriceChangeTracker
-     ↓
-CryptoDataManager
-     ↓
-FFI Bridge (C)
-     ↓
-Rust Library
+┌─────────────────┐    MQTT     ┌──────────────────┐
+│   iOS Client    │◄──────────►│   Rust Server    │
+│                 │             │                  │
+│ SwiftUI Views   │             │ MQTT Broker      │
+│       ↓         │             │ (rumqttd)        │
+│ 🦀 Rust MQTT    │             │       ↓          │
+│    Client       │             │ 🦀 CMC API       │
+│   (rumqttc)     │             │    Client        │
+│       ↓         │             │       ↓          │
+│ FFI Bridge      │             │ 🦀 Data Publisher│
+│       ↓         │             │                  │
+│ 🦀 Rust Library │             │                  │
+└─────────────────┘             └──────────────────┘
 ```
 
-### Rust Backend
-```
-API Requests → Data Processing → Caching → FFI Export → iOS
-```
+### Security Benefits
+- **No API keys on client**: All CoinMarketCap requests from server only
+- **Real-time updates**: MQTT provides instant price notifications
+- **Scalable**: Multiple clients can connect to one server
+- **Offline resilience**: Client maintains last known data when disconnected
 
 ### Key Components
 
