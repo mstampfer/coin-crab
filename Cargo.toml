@@ -12,20 +12,8 @@ name = "crypto_server"
 path = "src/server.rs"
 
 [[bin]]
-name = "test_api"
-path = "src/test_api.rs"
-
-[[bin]]
-name = "mqtt_test"
-path = "mqtt_test.rs"
-
-[[bin]]
 name = "mqtt_test_client"
 path = "src/mqtt_test_client.rs"
-
-[[bin]]
-name = "retained_test"
-path = "retained_test.rs"
 
 [dependencies]
 libc = "0.2"

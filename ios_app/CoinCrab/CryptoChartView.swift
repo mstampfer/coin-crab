@@ -1,5 +1,6 @@
 import SwiftUI
 import Foundation
+import WebKit
 
 struct CryptoChartView: View {
     let cryptocurrency: CryptoCurrency
@@ -89,7 +90,7 @@ struct CryptoChartView: View {
                             loadHistoricalDataFromFFI()
                         }
                     } else {
-                        LightweightChartView(data: historicalData, 
+                        TradingViewChartView(data: historicalData, 
                                            isPositive: cryptocurrency.quote.USD.percent_change_24h >= 0)
                             .frame(maxWidth: .infinity)
                             .frame(height: 300)
@@ -279,105 +280,6 @@ struct TimeFrameSelectorView: View {
     }
 }
 
-struct LightweightChartView: View {
-    let data: [ChartDataPoint]
-    let isPositive: Bool
-    
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.gray.opacity(0.05))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.gray.opacity(0.1), lineWidth: 1)
-                )
-            
-            if data.isEmpty {
-                VStack(spacing: 16) {
-                    Image(systemName: "chart.line.uptrend.xyaxis")
-                        .font(.system(size: 40))
-                        .foregroundColor(.gray)
-                    Text("No chart data available")
-                        .font(.body)
-                        .foregroundColor(.gray)
-                }
-            } else {
-                // For now, we'll use a custom SwiftUI chart
-                // This will be replaced with TradingView Lightweight Charts
-                CustomLineChart(data: data, isPositive: isPositive)
-                    .padding(20)
-            }
-        }
-    }
-}
-
-struct CustomLineChart: View {
-    let data: [ChartDataPoint]
-    let isPositive: Bool
-    
-    var body: some View {
-        GeometryReader { geometry in
-            let width = geometry.size.width
-            let height = geometry.size.height
-            
-            if let minPrice = data.map(\.price).min(),
-               let maxPrice = data.map(\.price).max(),
-               maxPrice > minPrice {
-                
-                Path { path in
-                    for (index, point) in data.enumerated() {
-                        let x = width * CGFloat(index) / CGFloat(data.count - 1)
-                        let normalizedPrice = (point.price - minPrice) / (maxPrice - minPrice)
-                        let y = height * (1 - CGFloat(normalizedPrice))
-                        
-                        if index == 0 {
-                            path.move(to: CGPoint(x: x, y: y))
-                        } else {
-                            path.addLine(to: CGPoint(x: x, y: y))
-                        }
-                    }
-                }
-                .stroke(
-                    LinearGradient(
-                        colors: isPositive ? [.green, .green.opacity(0.8)] : [.red, .red.opacity(0.8)],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    ),
-                    style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
-                )
-                
-                // Add fill gradient
-                Path { path in
-                    for (index, point) in data.enumerated() {
-                        let x = width * CGFloat(index) / CGFloat(data.count - 1)
-                        let normalizedPrice = (point.price - minPrice) / (maxPrice - minPrice)
-                        let y = height * (1 - CGFloat(normalizedPrice))
-                        
-                        if index == 0 {
-                            path.move(to: CGPoint(x: x, y: y))
-                        } else {
-                            path.addLine(to: CGPoint(x: x, y: y))
-                        }
-                    }
-                    
-                    // Close the path to create a fill area
-                    path.addLine(to: CGPoint(x: width, y: height))
-                    path.addLine(to: CGPoint(x: 0, y: height))
-                    path.closeSubpath()
-                }
-                .fill(
-                    LinearGradient(
-                        colors: isPositive ? 
-                            [Color.green.opacity(0.3), Color.green.opacity(0.05)] :
-                            [Color.red.opacity(0.3), Color.red.opacity(0.05)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-            }
-        }
-    }
-}
 
 struct ChartStatsView: View {
     let cryptocurrency: CryptoCurrency
