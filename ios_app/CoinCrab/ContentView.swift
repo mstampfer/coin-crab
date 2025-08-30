@@ -1,5 +1,6 @@
 import SwiftUI
 import Foundation
+import Combine
 
 // MARK: - Data Models
 struct CryptoCurrency: Codable, Identifiable {
@@ -41,7 +42,14 @@ struct CryptoClientResult: Codable {
     let cached: Bool
 }
 
-// MARK: - Data Manager
+// Server response structure (matches server.rs ApiResponse)
+struct ApiResponse: Codable {
+    let data: [CryptoCurrency]
+    let last_updated: String
+    let cached: Bool
+}
+
+// MARK: - Simplified Data Manager using Rust FFI delegation
 class CryptoDataManager: ObservableObject {
     @Published var cryptocurrencies: [CryptoCurrency] = []
     @Published var isLoading = false
@@ -49,10 +57,10 @@ class CryptoDataManager: ObservableObject {
     @Published var lastUpdated: String?
     @Published var isDataCached = false
     
-    private let serverEndpoint = "http://127.0.0.1:8080/api/crypto-prices"
     private var refreshTimer: Timer?
     
     init() {
+        print("CryptoDataManager: Initializing with Rust FFI delegation architecture")
         startPeriodicRefresh()
     }
     
@@ -61,20 +69,16 @@ class CryptoDataManager: ObservableObject {
     }
     
     func fetchCryptoPrices() {
-        print("fetchCryptoPrices called at \(Date())")
+        print("fetchCryptoPrices: Calling Rust get_crypto_data() function")
         isLoading = true
         errorMessage = nil
         
-        DispatchQueue.global(qos: .background).async { [weak self] in
-            guard let self = self else { return }
-            
-            let endpoint = self.serverEndpoint.cString(using: .utf8)
-            let resultPtr = get_latest_crypto_prices(endpoint)
-            
-            guard let resultPtr = resultPtr else {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            // Call Rust function that handles all networking internally (will use MQTT)
+            guard let resultPtr = get_crypto_data() else {
                 DispatchQueue.main.async {
-                    self.errorMessage = "Failed to get response from Rust"
-                    self.isLoading = false
+                    self?.errorMessage = "Failed to call Rust function"
+                    self?.isLoading = false
                 }
                 return
             }
@@ -82,32 +86,29 @@ class CryptoDataManager: ObservableObject {
             let resultString = String(cString: resultPtr)
             free_string(resultPtr)
             
-            guard let data = resultString.data(using: .utf8) else {
-                DispatchQueue.main.async {
-                    self.errorMessage = "Invalid response format"
-                    self.isLoading = false
-                }
-                return
-            }
+            print("fetchCryptoPrices: Got result from Rust: \(resultString.prefix(100))...")
             
             do {
-                let result = try JSONDecoder().decode(CryptoClientResult.self, from: data)
+                let result = try JSONDecoder().decode(CryptoClientResult.self, from: resultString.data(using: .utf8) ?? Data())
                 
                 DispatchQueue.main.async {
-                    if result.success {
-                        self.cryptocurrencies = result.data ?? []
-                        self.lastUpdated = result.last_updated
-                        self.isDataCached = result.cached
-                        self.errorMessage = nil
+                    if result.success, let data = result.data {
+                        self?.cryptocurrencies = data
+                        self?.lastUpdated = result.last_updated ?? DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
+                        self?.isDataCached = result.cached
+                        self?.errorMessage = nil
+                        print("SUCCESS: Updated \(data.count) cryptocurrencies from Rust")
                     } else {
-                        self.errorMessage = result.error ?? "Unknown error occurred"
+                        self?.errorMessage = result.error ?? "Unknown error from Rust"
+                        print("ERROR from Rust: \(result.error ?? "Unknown")")
                     }
-                    self.isLoading = false
+                    self?.isLoading = false
                 }
             } catch {
                 DispatchQueue.main.async {
-                    self.errorMessage = "Failed to decode response: \(error.localizedDescription)"
-                    self.isLoading = false
+                    self?.errorMessage = "Failed to parse Rust response: \(error.localizedDescription)"
+                    self?.isLoading = false
+                    print("ERROR parsing Rust response: \(error)")
                 }
             }
         }
@@ -119,12 +120,13 @@ class CryptoDataManager: ObservableObject {
         
         // Set up timer for periodic refresh (every 30 seconds)
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
-            print("Timer triggered - fetching crypto prices")
+            print("Timer triggered - calling Rust for crypto prices")
             self?.fetchCryptoPrices()
         }
     }
     
     func manualRefresh() {
+        print("Manual refresh requested - calling Rust")
         fetchCryptoPrices()
     }
 }
@@ -136,6 +138,10 @@ struct ContentView: View {
     @State private var selectedSort = "24h %"
     @State private var selectedCategory = "Top 100"
     @State private var selectedCurrency = "USD"
+    
+    init() {
+        print("ContentView: init() called with simplified architecture")
+    }
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -765,42 +771,9 @@ struct CryptoIcon: View {
             return
         }
         
-        // Try multiple sources for better reliability
-        let iconSources = [
-            "https://cryptoicons.org/api/icon/\(symbol.lowercased())/64",
-            "https://assets.coincap.io/assets/icons/\(symbol.lowercased())@2x.png",
-            "https://s2.coinmarketcap.com/static/img/coins/64x64/\(getCoinMarketCapId(for: symbol)).png"
-        ]
-        
-        tryLoadingIcon(from: iconSources, index: 0)
-    }
-    
-    private func tryLoadingIcon(from sources: [String], index: Int) {
-        guard index < sources.count else {
-            isLoading = false
-            return
-        }
-        
-        guard let url = URL(string: sources[index]) else {
-            tryLoadingIcon(from: sources, index: index + 1)
-            return
-        }
-        
-        URLSession.shared.dataTask(with: url) { data, response, error in
-            DispatchQueue.main.async {
-                if let data = data, error == nil, 
-                   let httpResponse = response as? HTTPURLResponse,
-                   httpResponse.statusCode == 200 {
-                    // Cache the successful download
-                    IconCache.shared.setIcon(for: self.symbol, data: data)
-                    self.imageData = data
-                    self.isLoading = false
-                } else {
-                    // Try next source
-                    self.tryLoadingIcon(from: sources, index: index + 1)
-                }
-            }
-        }.resume()
+        // No direct network calls - use fallback icon immediately
+        // Icon loading should be delegated to Rust layer if needed
+        isLoading = false
     }
     
     private func getCoinMarketCapId(for symbol: String) -> String {

@@ -15,6 +15,18 @@ path = "src/server.rs"
 name = "test_api"
 path = "src/test_api.rs"
 
+[[bin]]
+name = "mqtt_test"
+path = "mqtt_test.rs"
+
+[[bin]]
+name = "mqtt_test_client"
+path = "src/mqtt_test_client.rs"
+
+[[bin]]
+name = "retained_test"
+path = "retained_test.rs"
+
 [dependencies]
 libc = "0.2"
 actix-web = "4.4"
@@ -26,5 +38,9 @@ log = "0.4"
 env_logger = "0.10"
 dotenv = "0.15"
 chrono = { version = "0.4", features = ["serde"] }
+# MQTT dependencies
+rumqttd = "0.18"
+rumqttc = "0.24"
+toml = "0.8"
 
 [target.'cfg(target_os = "ios")'.dependencies]

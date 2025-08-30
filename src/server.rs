@@ -4,7 +4,13 @@ use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, Duration};
 use tokio::time;
-use log::{info, warn, error};
+use log::{debug, info, warn, error};
+// MQTT imports
+use rumqttd::{Broker, Config as BrokerConfig};
+use rumqttc::{MqttOptions, AsyncClient, QoS, Event, Packet};
+use std::collections::HashMap;
+use std::thread;
+use std::path::Path;
 // Historical data structures - duplicated from lib.rs for server use
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HistoricalDataPoint {
@@ -64,6 +70,8 @@ struct AppState {
     last_fetch: Arc<Mutex<SystemTime>>,
     client: Client,
     api_key: String,
+    mqtt_client: Arc<AsyncClient>,
+    historical_cache: Arc<Mutex<HashMap<String, (HistoricalDataResult, SystemTime)>>>,
 }
 
 #[get("/api/crypto-prices")]
@@ -121,11 +129,23 @@ async fn fetch_data_periodically(state: web::Data<AppState>) {
                         Ok(cmc_data) => {
                             info!("Successfully fetched {} cryptocurrencies", cmc_data.data.len());
                             
-                            let mut cache = state.cache.lock().unwrap();
-                            *cache = Some(cmc_data.data);
+                            // Clone data for MQTT publishing before updating cache
+                            let crypto_data_for_mqtt = cmc_data.data.clone();
                             
-                            let mut last_fetch = state.last_fetch.lock().unwrap();
-                            *last_fetch = SystemTime::now();
+                            // Update cache (scoped to release locks before await)
+                            {
+                                let mut cache = state.cache.lock().unwrap();
+                                *cache = Some(cmc_data.data);
+                                
+                                let mut last_fetch = state.last_fetch.lock().unwrap();
+                                *last_fetch = SystemTime::now();
+                            }
+                            
+                            // Publish to MQTT (locks are now released) - ignore errors for now
+                            let _ = tokio::time::timeout(
+                                Duration::from_millis(100),
+                                publish_crypto_data_to_mqtt(&state.mqtt_client, &crypto_data_for_mqtt)
+                            ).await;
                         }
                         Err(e) => {
                             error!("Failed to parse CoinMarketCap response: {}", e);
@@ -148,6 +168,136 @@ async fn fetch_data_periodically(state: web::Data<AppState>) {
             }
         }
     }
+}
+
+async fn clear_mqtt_cache_periodically(state: web::Data<AppState>) {
+    info!("Starting periodic MQTT cache clearing task");
+    
+    // Wait 5 minutes before starting periodic cache clearing
+    tokio::time::sleep(Duration::from_secs(300)).await;
+    
+    let timeframes = ["1h", "24h", "7d", "30d", "90d", "365d"];
+    let symbols = ["BTC", "ETH", "ADA", "SOL", "DOT", "MATIC", "LINK", "XRP", "LTC", "BCH"];
+    
+    loop {
+        for &timeframe in &timeframes {
+            // Get the update interval for this timeframe
+            let interval_secs = match timeframe {
+                "1h" => 300,    // 5 minutes
+                "24h" => 3600,  // 1 hour  
+                "7d" => 7200,   // 2 hours
+                "30d" => 21600, // 6 hours
+                "90d" => 86400, // 1 day
+                "365d" => 86400, // 1 day
+                _ => 3600,
+            };
+            
+            info!("Clearing MQTT cache for timeframe {} (interval: {}s)", timeframe, interval_secs);
+            
+            // Clear MQTT retained messages for this timeframe
+            for &symbol in &symbols {
+                let topic = format!("crypto/historical/{}/{}", symbol, timeframe);
+                
+                // Publish empty retained message to clear the topic
+                if let Err(_) = tokio::time::timeout(
+                    Duration::from_millis(1000),
+                    publish_empty_retained_message(&state.mqtt_client, &topic)
+                ).await {
+                    warn!("Timeout clearing MQTT cache for {}", topic);
+                }
+            }
+            
+            info!("Cleared MQTT cache for timeframe {}, next clear in {}s", timeframe, interval_secs);
+            tokio::time::sleep(Duration::from_secs(interval_secs)).await;
+        }
+    }
+}
+
+async fn publish_empty_retained_message(mqtt_client: &AsyncClient, topic: &str) {
+    match mqtt_client.publish(topic, rumqttc::QoS::AtLeastOnce, true, "").await {
+        Ok(_) => info!("Cleared MQTT retained message for topic: {}", topic),
+        Err(e) => warn!("Failed to clear MQTT retained message for {}: {}", topic, e),
+    }
+}
+
+async fn publish_initial_priority_data(state: &web::Data<AppState>) {
+    // Only fetch data for the most popular cryptocurrencies to avoid rate limits
+    let priority_symbols = ["BTC", "ETH"];
+    let priority_timeframes = ["24h", "7d"]; // Most commonly used timeframes
+    
+    info!("Fetching priority historical data to avoid rate limits on startup");
+    
+    let mut failed_requests = Vec::new();
+    
+    for &symbol in &priority_symbols {
+        for &timeframe in &priority_timeframes {
+            info!("Fetching and publishing initial historical data for {} {}", symbol, timeframe);
+            
+            match fetch_historical_data_server(symbol, timeframe, &state.api_key, &state.client).await {
+                result if result.success => {
+                    // Cache the result
+                    let cache_key = format!("{}:{}", symbol, timeframe);
+                    {
+                        let mut hist_cache = state.historical_cache.lock().unwrap();
+                        hist_cache.insert(cache_key, (result.clone(), SystemTime::now()));
+                    }
+                    
+                    // Publish to MQTT with retain=true for immediate availability
+                    if let Err(_) = tokio::time::timeout(
+                        Duration::from_millis(1000),
+                        publish_historical_data_to_mqtt(&state.mqtt_client, symbol, timeframe, &result)
+                    ).await {
+                        warn!("MQTT publish timeout for initial {} {}", symbol, timeframe);
+                    }
+                }
+                result => {
+                    warn!("Failed to fetch initial historical data for {} {}: {:?}", symbol, timeframe, result.error);
+                    failed_requests.push((symbol, timeframe));
+                }
+            }
+            
+            // Small delay between requests to avoid rate limiting
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
+    }
+    
+    // Retry failed requests after a longer delay if there are any
+    if !failed_requests.is_empty() {
+        info!("Retrying {} failed historical data requests after rate limit cooldown", failed_requests.len());
+        tokio::time::sleep(Duration::from_secs(70)).await; // Wait for rate limit to reset
+        
+        for (symbol, timeframe) in failed_requests {
+            info!("Retrying historical data for {} {}", symbol, timeframe);
+            
+            match fetch_historical_data_server(symbol, timeframe, &state.api_key, &state.client).await {
+                result if result.success => {
+                    // Cache the result
+                    let cache_key = format!("{}:{}", symbol, timeframe);
+                    {
+                        let mut hist_cache = state.historical_cache.lock().unwrap();
+                        hist_cache.insert(cache_key, (result.clone(), SystemTime::now()));
+                    }
+                    
+                    // Publish to MQTT with retain=true for immediate availability
+                    if let Err(_) = tokio::time::timeout(
+                        Duration::from_millis(1000),
+                        publish_historical_data_to_mqtt(&state.mqtt_client, symbol, timeframe, &result)
+                    ).await {
+                        warn!("MQTT publish timeout for retry {} {}", symbol, timeframe);
+                    }
+                    info!("Successfully published historical data for {} {} on retry", symbol, timeframe);
+                }
+                result => {
+                    warn!("Retry also failed for {} {}: {:?}", symbol, timeframe, result.error);
+                }
+            }
+            
+            // Longer delay between retries to be more cautious
+            tokio::time::sleep(Duration::from_secs(2)).await;
+        }
+    }
+    
+    info!("Completed initial historical data publishing");
 }
 
 #[get("/health")]
@@ -177,6 +327,24 @@ async fn get_historical_data(
     // Implement the actual CMC historical data fetching
     let result = fetch_historical_data_server(&symbol, &timeframe, &data.api_key, &data.client).await;
     
+    // Cache the result and publish to MQTT for future requests
+    let cache_key = format!("{}:{}", symbol, timeframe);
+    {
+        let mut hist_cache = data.historical_cache.lock().unwrap();
+        hist_cache.insert(cache_key.clone(), (result.clone(), SystemTime::now()));
+    }
+    
+    // Publish to MQTT so subsequent requests can use MQTT instead of HTTP
+    if result.success {
+        info!("Publishing {} {} to MQTT for caching", symbol, timeframe);
+        if let Err(_) = tokio::time::timeout(
+            Duration::from_millis(1000),
+            publish_historical_data_to_mqtt(&data.mqtt_client, &symbol, &timeframe, &result)
+        ).await {
+            warn!("MQTT publish timeout for {} {}", symbol, timeframe);
+        }
+    }
+    
     web::Json(result)
 }
 
@@ -198,7 +366,7 @@ fn get_interval_for_timeframe(timeframe: &str) -> &str {
         "24h" | "1d" => "1h",
         "7d" => "2h",
         "30d" => "6h",
-        "90d" => "1d",  // Use daily intervals for 90d (maps to 365d data)
+        "90d" => "1d",  // Use daily intervals for 90d
         "365d" | "1y" => "1d",
         "all" => "1d",  // Use daily intervals for all time
         _ => "1h",
@@ -219,7 +387,7 @@ async fn fetch_historical_data_server(
         "24h" | "1d" => 1,
         "7d" => 7,
         "30d" => 30,
-        "90d" => 365,  // CMC doesn't support 90d directly, use 1 year
+        "90d" => 90,
         "365d" | "1y" => 365,
         "all" => 365,  // Limit "all" to 1 year due to CMC API constraints
         _ => 30,
@@ -392,12 +560,236 @@ async fn fetch_historical_data_server(
     }
 }
 
+// MQTT Publishing Functions
+async fn publish_crypto_data_to_mqtt(mqtt_client: &AsyncClient, crypto_data: &[CryptoCurrency]) {
+    // Publish all crypto data to main topic with retention
+    let payload = match serde_json::to_string(crypto_data) {
+        Ok(json) => json,
+        Err(e) => {
+            error!("Failed to serialize crypto data for MQTT: {}", e);
+            return;
+        }
+    };
+    
+    if let Err(e) = mqtt_client.publish("crypto/prices/latest", QoS::AtLeastOnce, true, payload).await {
+        error!("Failed to publish to crypto/prices/latest: {}", e);
+    } else {
+        info!("Published {} cryptocurrencies to MQTT topic crypto/prices/latest", crypto_data.len());
+    }
+    
+    // Publish individual symbol updates
+    for crypto in crypto_data {
+        let individual_payload = match serde_json::to_string(crypto) {
+            Ok(json) => json,
+            Err(e) => {
+                error!("Failed to serialize {} for MQTT: {}", crypto.symbol, e);
+                continue;
+            }
+        };
+        
+        let topic = format!("crypto/prices/{}", crypto.symbol);
+        if let Err(e) = mqtt_client.publish(topic, QoS::AtLeastOnce, true, individual_payload).await {
+            error!("Failed to publish to crypto/prices/{}: {}", crypto.symbol, e);
+        }
+    }
+}
+
+async fn publish_historical_data_to_mqtt(
+    mqtt_client: &AsyncClient, 
+    symbol: &str, 
+    timeframe: &str, 
+    data: &HistoricalDataResult
+) {
+    let payload = match serde_json::to_string(data) {
+        Ok(json) => json,
+        Err(e) => {
+            error!("Failed to serialize historical data for MQTT: {}", e);
+            return;
+        }
+    };
+    
+    let topic = format!("crypto/historical/{}/{}", symbol.to_uppercase(), timeframe);
+    
+    // Use QoS 0 for historical data (less critical than live prices)
+    // Set retain=true so clients get immediate data when subscribing
+    if let Err(e) = mqtt_client.publish(&topic, QoS::AtMostOnce, true, payload).await {
+        error!("Failed to publish historical data to {}: {}", topic, e);
+    } else {
+        info!("Published historical data for {} {} to MQTT", symbol, timeframe);
+    }
+}
+
+// MQTT Broker Setup
+async fn setup_mqtt_broker() -> Result<AsyncClient, String> {
+    let broker_host = std::env::var("MQTT_BROKER_HOST").unwrap_or_else(|_| {
+        warn!("MQTT_BROKER_HOST not set in .env file, using localhost (127.0.0.1)");
+        "127.0.0.1".to_string()
+    });
+    
+    info!("Starting embedded MQTT broker on {}:1883", broker_host);
+    
+    // Load configuration from file
+    let config_path = "rumqttd.toml";
+    if !Path::new(config_path).exists() {
+        return Err(format!("MQTT broker config file {} not found", config_path));
+    }
+    
+    let config_content = std::fs::read_to_string(config_path)
+        .map_err(|e| format!("Failed to read broker config: {}", e))?;
+    
+    let config: BrokerConfig = toml::from_str(&config_content)
+        .map_err(|e| format!("Failed to parse broker config: {}", e))?;
+    
+    // Start broker in background thread (broker.start() is blocking)
+    thread::spawn(move || {
+        let mut broker = Broker::new(config);
+        info!("MQTT broker thread starting...");
+        if let Err(e) = broker.start() {
+            error!("MQTT broker failed: {}", e);
+        }
+    });
+    
+    // Give broker time to start
+    tokio::time::sleep(Duration::from_secs(3)).await;
+    
+    // Create MQTT client for publishing
+    let mut mqttoptions = MqttOptions::new("crypto-server-publisher", &broker_host, 1883);
+    mqttoptions.set_keep_alive(Duration::from_secs(30));
+    mqttoptions.set_clean_session(true);
+    mqttoptions.set_max_packet_size(102400, 102400); // Match broker config
+    
+    let (client, mut eventloop) = AsyncClient::new(mqttoptions, 10);
+    
+    // Start eventloop for the main MQTT client to enable publishing
+    let client_clone = client.clone();
+    tokio::spawn(async move {
+        info!("Starting MQTT client eventloop for publishing");
+        loop {
+            match eventloop.poll().await {
+                Ok(Event::Incoming(Packet::ConnAck(_))) => {
+                    info!("MQTT publisher client connected to broker");
+                }
+                Ok(Event::Incoming(Packet::PingResp)) => {
+                    // Normal keepalive, no need to log
+                }
+                Ok(event) => {
+                    debug!("MQTT publisher event: {:?}", event);
+                }
+                Err(e) => {
+                    error!("MQTT publisher error: {}", e);
+                    // Attempt to reconnect after error
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                }
+            }
+        }
+    });
+    
+    // Wait for connection
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    
+    Ok(client_clone)
+}
+
+// Setup MQTT request handling - call after AppState is created
+async fn setup_mqtt_request_handling(state: web::Data<AppState>) -> Result<(), String> {
+    let client = &*state.mqtt_client;
+    
+    // Subscribe to historical data request topic
+    if let Err(e) = client.subscribe("crypto/requests/historical", QoS::AtLeastOnce).await {
+        error!("Failed to subscribe to request topic: {}", e);
+        return Err(format!("Failed to subscribe to request topic: {}", e));
+    } else {
+        info!("Subscribed to crypto/requests/historical topic");
+    }
+    
+    // Create a new client connection for the event loop
+    let broker_host = std::env::var("MQTT_BROKER_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+    let mut mqttoptions = MqttOptions::new("crypto-server-subscriber", &broker_host, 1883);
+    mqttoptions.set_keep_alive(Duration::from_secs(30));
+    mqttoptions.set_clean_session(true);
+    mqttoptions.set_max_packet_size(102400, 102400);
+    
+    let (event_client, mut eventloop) = AsyncClient::new(mqttoptions, 10);
+    
+    // Subscribe with the event client
+    if let Err(e) = event_client.subscribe("crypto/requests/historical", QoS::AtLeastOnce).await {
+        error!("Failed to subscribe to request topic with event client: {}", e);
+        return Err(format!("Failed to subscribe to request topic: {}", e));
+    }
+    
+    // Clone state for the event loop
+    let state_for_requests = state.clone();
+    tokio::spawn(async move {
+        info!("Starting MQTT client event loop for request handling");
+        loop {
+            match eventloop.poll().await {
+                Ok(Event::Incoming(Packet::ConnAck(_))) => {
+                    info!("MQTT request handler connected to broker");
+                }
+                Ok(Event::Incoming(Packet::PingResp)) => {
+                    // Normal keepalive, no need to log
+                }
+                Ok(Event::Incoming(Packet::Publish(publish))) => {
+                    let topic = &publish.topic;
+                    if topic == "crypto/requests/historical" {
+                        let payload = std::str::from_utf8(&publish.payload).unwrap_or("").to_string();
+                        info!("Received historical data request: {}", payload);
+                        
+                        // Parse request (format: "SYMBOL:TIMEFRAME")
+                        if let Some((symbol, timeframe)) = payload.split_once(':') {
+                            let symbol = symbol.to_string();
+                            let timeframe = timeframe.to_string();
+                            info!("Processing request for {} {}", symbol, timeframe);
+                            
+                            // Fetch data from CMC API and publish to MQTT
+                            let state_clone = state_for_requests.clone();
+                            tokio::spawn(async move {
+                                let result = fetch_historical_data_server(
+                                    &symbol, 
+                                    &timeframe, 
+                                    &state_clone.api_key, 
+                                    &state_clone.client
+                                ).await;
+                                
+                                if result.success {
+                                    info!("Successfully fetched {} {} - publishing to MQTT", symbol, timeframe);
+                                    publish_historical_data_to_mqtt(
+                                        &state_clone.mqtt_client, 
+                                        &symbol, 
+                                        &timeframe, 
+                                        &result
+                                    ).await;
+                                    info!("Published {} {} to MQTT successfully", symbol, timeframe);
+                                } else {
+                                    error!("Failed to fetch {} {}: {:?}", symbol, timeframe, result.error);
+                                }
+                            });
+                        } else {
+                            warn!("Invalid request format: {}", payload);
+                        }
+                    }
+                }
+                Ok(event) => {
+                    debug!("MQTT request handler event: {:?}", event);
+                }
+                Err(e) => {
+                    error!("MQTT request handler error: {}", e);
+                    // Attempt to reconnect after error
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                }
+            }
+        }
+    });
+    
+    Ok(())
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();
     
     // Load .env file
-    dotenv::dotenv().ok();
+    dotenv::from_filename(".env.server").ok();
     
     let api_key = std::env::var("CMC_API_KEY")
         .unwrap_or_else(|_| {
@@ -405,19 +797,53 @@ async fn main() -> std::io::Result<()> {
             "YOUR_API_KEY_HERE".to_string()
         });
     
+    // Setup MQTT broker and client  
+    let mqtt_client = match setup_mqtt_broker().await {
+        Ok(client) => {
+            info!("MQTT broker and client setup complete");
+            Arc::new(client)
+        }
+        Err(e) => {
+            error!("Failed to setup MQTT broker: {}", e);
+            warn!("Falling back to HTTP-only mode");
+            // Create a dummy client as fallback
+            let broker_host = std::env::var("MQTT_BROKER_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+            let mqttoptions = MqttOptions::new("dummy-client", &broker_host, 1884);
+            let (dummy_client, _) = AsyncClient::new(mqttoptions, 10);
+            Arc::new(dummy_client)
+        }
+    };
+    
     let state = web::Data::new(AppState {
         cache: Arc::new(Mutex::new(None)),
         last_fetch: Arc::new(Mutex::new(SystemTime::now())),
         client: Client::new(),
         api_key,
+        mqtt_client,
+        historical_cache: Arc::new(Mutex::new(HashMap::new())),
     });
+    
+    // Setup MQTT request handling now that AppState is created
+    if let Err(e) = setup_mqtt_request_handling(state.clone()).await {
+        error!("Failed to setup MQTT request handling: {}", e);
+        warn!("MQTT requests will not be processed");
+    }
     
     let state_clone = state.clone();
     tokio::spawn(async move {
         fetch_data_periodically(state_clone).await;
     });
     
+    // Spawn historical data publishing task (every hour)
+    let state_clone_hist = state.clone();
+    tokio::spawn(async move {
+        clear_mqtt_cache_periodically(state_clone_hist).await;
+    });
+    
     info!("Starting crypto market data server on http://127.0.0.1:8080");
+    info!("MQTT broker listening on 0.0.0.0:1883");
+    info!("MQTT broker console on 127.0.0.1:3030");
+    info!("Ready to accept connections...");
     
     HttpServer::new(move || {
         App::new()
@@ -427,7 +853,7 @@ async fn main() -> std::io::Result<()> {
             .service(health_check)
             .service(get_historical_data)
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind(("0.0.0.0", 8080))?
     .run()
     .await
 }

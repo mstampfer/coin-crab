@@ -1,5 +1,18 @@
-/.env
+/.env.server
 /.idea
 /target
 /ios_app/RustHelloApp.xcodeproj
 /.DS_Store
+ios_app/.DS_Store
+ios_app/build/
+ios_app/DerivedData/
+
+# Xcode user-specific files
+ios_app/*.xcodeproj/project.xcworkspace/xcuserdata/
+ios_app/*.xcodeproj/xcuserdata/
+
+# Test files
+*test*
+
+# Binary files
+*.a
