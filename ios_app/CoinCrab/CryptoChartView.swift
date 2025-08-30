@@ -78,7 +78,7 @@ struct CryptoChartView: View {
                 // Time frame selector
                 TimeFrameSelectorView(selectedTimeframe: $selectedTimeframe)
                         .onChange(of: selectedTimeframe) { _, newValue in
-                            loadHistoricalData()
+                            loadHistoricalDataFromFFI()
                         }
                     
                     // Chart container
@@ -86,7 +86,7 @@ struct CryptoChartView: View {
                         ChartLoadingView()
                     } else if let errorMessage = errorMessage {
                         ChartErrorView(message: errorMessage) {
-                            loadHistoricalData()
+                            loadHistoricalDataFromFFI()
                         }
                     } else {
                         LightweightChartView(data: historicalData, 
@@ -104,192 +104,70 @@ struct CryptoChartView: View {
         }
         .preferredColorScheme(.dark)
         .onAppear {
-            loadHistoricalData()
+            loadHistoricalDataFromFFI()
         }
     }
     
-    private func loadHistoricalData() {
+    
+    private func loadHistoricalDataFromFFI() {
         isLoading = true
         errorMessage = nil
         
-        Task {
-            let cryptoSymbol = self.cryptocurrency.symbol
-            let timeframe = self.selectedTimeframe
+        let symbol = cryptocurrency.symbol
+        let timeframe = selectedTimeframe.cmcTimeframe
+        
+        print("📊 COINCRAB: Calling Rust get_historical_data() for \(symbol) (\(timeframe))")
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            let symbolCStr = symbol.cString(using: .utf8)
+            let timeframeCStr = timeframe.cString(using: .utf8)
             
-            // Make HTTP request to crypto_server instead of direct CMC API calls
-            let symbol = cryptoSymbol.lowercased()
-            let timeframeStr = timeframe.cmcTimeframe
-            let serverURL = "http://127.0.0.1:8080/api/historical/\(symbol)?timeframe=\(timeframeStr)"
-            
-            NSLog("🔍 COINCRAB: Calling crypto_server for \(cryptoSymbol) with URL: \(serverURL)")
-            print("🔍 Calling crypto_server for \(cryptoSymbol) with URL: \(serverURL)")
-            
-            guard let url = URL(string: serverURL) else {
+            guard let symbolPtr = symbolCStr, let timeframePtr = timeframeCStr else {
                 DispatchQueue.main.async {
-                    NSLog("🚨 COINCRAB: Invalid server URL, using mock data")
-                    print("Invalid server URL, using mock data")
-                    self.generateMockData()
+                    self.errorMessage = "Failed to convert strings to C format"
                     self.isLoading = false
                 }
                 return
             }
             
-            do {
-                NSLog("🧪 COINCRAB: About to call server endpoint...")
-                let (data, response) = try await URLSession.shared.data(from: url)
-                
-                guard let httpResponse = response as? HTTPURLResponse else {
-                    DispatchQueue.main.async {
-                        NSLog("🚨 COINCRAB: Invalid response type, using mock data")
-                        print("Invalid response type, using mock data")
-                        self.generateMockData()
-                        self.isLoading = false
-                    }
-                    return
+            let resultCStr = get_historical_data(symbolPtr, timeframePtr)
+            guard let resultPtr = resultCStr else {
+                DispatchQueue.main.async {
+                    self.errorMessage = "Failed to get historical data from Rust"
+                    self.isLoading = false
                 }
-                
-                NSLog("🧪 COINCRAB: Server responded with status: \(httpResponse.statusCode)")
-                
-                guard httpResponse.statusCode == 200 else {
-                    DispatchQueue.main.async {
-                        NSLog("🚨 COINCRAB: Server error \(httpResponse.statusCode), using mock data")
-                        print("Server error \(httpResponse.statusCode), using mock data")
-                        self.generateMockData()
-                        self.isLoading = false
-                    }
-                    return
-                }
-                
-                let resultString = String(data: data, encoding: .utf8) ?? ""
-                NSLog("🔍 COINCRAB: Got server result: \(String(resultString.prefix(100)))...")
-                
-                // Check for server-side errors in the JSON response
-                if resultString.contains("\"success\":false") {
-                    DispatchQueue.main.async {
-                        NSLog("🚨 COINCRAB: Server returned error, using mock data")
-                        print("Server returned error: \(resultString)")
-                        self.generateMockData()
-                        self.isLoading = false
-                    }
-                    return
-                }
-                
-                guard let responseData = resultString.data(using: .utf8) else {
-                    DispatchQueue.main.async {
-                        NSLog("🚨 COINCRAB: Invalid response format, using mock data")
-                        print("Invalid response format, using mock data")
-                        self.generateMockData()
-                        self.isLoading = false
-                    }
-                    return
-                }
-                
-                // Parse the server response
-                NSLog("🔍 COINCRAB: About to parse JSON, length: \(responseData.count) bytes")
-                
+                return
+            }
+            let resultString = String(cString: resultPtr)
+            
+            print("📊 COINCRAB: Got historical data result from Rust: \(resultString.prefix(100))...")
+            
+            DispatchQueue.main.async {
                 do {
-                    let result = try JSONDecoder().decode(HistoricalDataResult.self, from: responseData)
-                NSLog("🔍 COINCRAB: JSON parsing successful, success=\(result.success), data points=\(result.data.count)")
-                
-                DispatchQueue.main.async {
+                    let data = resultString.data(using: .utf8) ?? Data()
+                    let result = try JSONDecoder().decode(HistoricalDataResult.self, from: data)
+                    
                     if result.success {
-                        NSLog("🎉 COINCRAB: Processing \(result.data.count) data points for chart")
-                        self.historicalData = result.data.map { dataPoint in
-                            ChartDataPoint(
-                                timestamp: dataPoint.timestamp,
-                                price: dataPoint.price
-                            )
-                        }.sorted { $0.timestamp < $1.timestamp }
-                        NSLog("🎉 COINCRAB: Chart updated with real data, first price: $\(result.data.first?.price ?? 0)")
-                        self.errorMessage = nil
+                        self.historicalData = result.data.map { point in
+                            ChartDataPoint(timestamp: point.timestamp, price: point.price)
+                        }
+                        print("📊 COINCRAB: Loaded \(result.data.count) data points for \(result.symbol ?? "Unknown")")
                     } else {
-                        NSLog("🚨 COINCRAB: API returned error, using mock data: \(result.error ?? "Unknown error")")
-                        print("API returned error, using mock data: \(result.error ?? "Unknown error")")
-                        self.generateMockData()
+                        self.errorMessage = result.error ?? "Unknown error from server"
+                        print("📊 COINCRAB: Server error: \(result.error ?? "Unknown")")
                     }
-                    self.isLoading = false
-                }
                 } catch {
-                    // Fallback to mock data if JSON parsing fails
-                    NSLog("🚨 COINCRAB: JSON parsing failed: \(error)")
-                    NSLog("🚨 COINCRAB: Raw response: \(resultString.prefix(500))")
-                    DispatchQueue.main.async {
-                        print("API parsing failed, using mock data: \(error)")
-                        self.generateMockData()
-                        self.isLoading = false
-                    }
+                    self.errorMessage = "Failed to parse response: \(error.localizedDescription)"
+                    print("📊 COINCRAB: JSON parsing error: \(error.localizedDescription)")
                 }
                 
-            } catch {
-                // Fallback to mock data if HTTP request fails
-                NSLog("🚨 COINCRAB: HTTP request failed: \(error)")
-                DispatchQueue.main.async {
-                    print("HTTP request failed, using mock data: \(error)")
-                    self.generateMockData()
-                    self.isLoading = false
-                }
+                self.isLoading = false
             }
         }
     }
     
     
-    private func generateMockData() {
-        // Generate mock data that resembles the uploaded chart pattern
-        let basePrice = cryptocurrency.quote.USD.price
-        
-        var data: [ChartDataPoint] = []
-        let pointCount = getPointCount()
-        
-        for i in 0..<pointCount {
-            let progress = Double(i) / Double(pointCount - 1)
-            let timeInterval = getTimeInterval(for: i, total: pointCount)
-            
-            // Create a pattern similar to the uploaded chart (dramatic rise)
-            var priceMultiplier: Double
-            if progress < 0.7 {
-                // Gradual decline in first 70%
-                priceMultiplier = 1.0 - (progress * 0.4) // Down to 0.6
-            } else {
-                // Sharp rise in last 30%
-                let riseProgress = (progress - 0.7) / 0.3
-                priceMultiplier = 0.6 + (riseProgress * 0.9) // Up to 1.5
-            }
-            
-            let price = basePrice * priceMultiplier
-            let timestamp = Date().timeIntervalSince1970 - timeInterval
-            
-            data.append(ChartDataPoint(timestamp: timestamp, price: price))
-        }
-        
-        self.historicalData = data
-    }
     
-    private func getPointCount() -> Int {
-        switch selectedTimeframe {
-        case .hour: return 12 // 5-minute intervals
-        case .day: return 24 // 1-hour intervals
-        case .week: return 28 // 6-hour intervals
-        case .month: return 30 // 1-day intervals
-        case .quarter: return 90 // 1-day intervals
-        case .year: return 365 // 1-day intervals
-        case .all: return 100 // Variable intervals
-        }
-    }
-    
-    private func getTimeInterval(for index: Int, total: Int) -> TimeInterval {
-        let totalInterval: TimeInterval
-        switch selectedTimeframe {
-        case .hour: totalInterval = 3600 // 1 hour
-        case .day: totalInterval = 86400 // 24 hours
-        case .week: totalInterval = 604800 // 7 days
-        case .month: totalInterval = 2592000 // 30 days
-        case .quarter: totalInterval = 7776000 // 90 days
-        case .year: totalInterval = 31536000 // 365 days
-        case .all: totalInterval = 157680000 // ~5 years
-        }
-        
-        return totalInterval * Double(total - index) / Double(total)
-    }
 }
 
 struct ChartDataPoint {
