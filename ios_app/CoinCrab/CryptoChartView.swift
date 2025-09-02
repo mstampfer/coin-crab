@@ -90,12 +90,42 @@ struct CryptoChartView: View {
                             loadHistoricalDataFromFFI()
                         }
                     } else {
-                        let _ = print("📊 COINCRAB: Passing \(historicalData.count) data points to TradingViewChartView")
-                        TradingViewChartView(data: historicalData, 
-                                           isPositive: cryptocurrency.quote.USD.percent_change_24h >= 0)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 300)
+                        VStack(spacing: 0) {
+                            // Chart with fullscreen button
+                            ZStack(alignment: .topTrailing) {
+                                let _ = print("📊 COINCRAB: Passing \(historicalData.count) data points to TradingViewChartView")
+                                TradingViewChartView(data: historicalData, 
+                                                   isPositive: cryptocurrency.quote.USD.percent_change_24h >= 0,
+                                                   timeframe: selectedTimeframe.cmcTimeframe)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 300)
+                                
+                                // Fullscreen button
+                                Button(action: {
+                                    let fullscreenView = FullscreenChartView(
+                                        data: historicalData,
+                                        isPositive: cryptocurrency.quote.USD.percent_change_24h >= 0,
+                                        timeframe: selectedTimeframe.cmcTimeframe,
+                                        cryptocurrency: cryptocurrency,
+                                        selectedTimeframe: selectedTimeframe
+                                    )
+                                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                                       let window = windowScene.windows.first {
+                                        let hostingController = UIHostingController(rootView: fullscreenView)
+                                        hostingController.modalPresentationStyle = .fullScreen
+                                        window.rootViewController?.present(hostingController, animated: true)
+                                    }
+                                }) {
+                                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                        .foregroundColor(.white)
+                                        .padding(8)
+                                        .background(Color.black.opacity(0.6))
+                                        .clipShape(Circle())
+                                }
+                                .padding(8)
+                            }
                             .padding(.horizontal, 16)
+                        }
                     }
                     
                     // Chart stats
@@ -404,5 +434,199 @@ struct ChartErrorView: View {
         }
         .frame(height: 300)
         .padding(.horizontal, 32)
+    }
+}
+
+struct FullscreenChartView: View {
+    let data: [ChartDataPoint]
+    let isPositive: Bool
+    let timeframe: String
+    let cryptocurrency: CryptoCurrency
+    @State private var selectedTimeframe: CryptoChartView.TimeFrame
+    @State private var historicalData: [ChartDataPoint]
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    @Environment(\.dismiss) private var dismiss
+    
+    init(data: [ChartDataPoint], isPositive: Bool, timeframe: String, cryptocurrency: CryptoCurrency, selectedTimeframe: CryptoChartView.TimeFrame) {
+        self.data = data
+        self.isPositive = isPositive
+        self.timeframe = timeframe
+        self.cryptocurrency = cryptocurrency
+        self._selectedTimeframe = State(initialValue: selectedTimeframe)
+        self._historicalData = State(initialValue: data)
+    }
+    
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                Color.black.ignoresSafeArea()
+                
+                VStack(spacing: 20) {
+                    // Header with close button and crypto info
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "bitcoinsign.circle.fill")
+                                    .foregroundColor(.orange)
+                                    .font(.title2)
+                                
+                                Text(cryptocurrency.symbol)
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.white)
+                                
+                                Text(cryptocurrency.name)
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                            }
+                            
+                            HStack(spacing: 12) {
+                                Text("$\(cryptocurrency.quote.USD.price, specifier: "%.2f")")
+                                    .font(.title)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white)
+                                
+                                HStack(spacing: 4) {
+                                    Image(systemName: cryptocurrency.quote.USD.percent_change_24h >= 0 ? "triangle.fill" : "triangle.fill")
+                                        .rotationEffect(.degrees(cryptocurrency.quote.USD.percent_change_24h >= 0 ? 0 : 180))
+                                        .foregroundColor(cryptocurrency.quote.USD.percent_change_24h >= 0 ? .green : .red)
+                                        .font(.caption)
+                                    
+                                    Text("\(abs(cryptocurrency.quote.USD.percent_change_24h), specifier: "%.2f")%")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(cryptocurrency.quote.USD.percent_change_24h >= 0 ? .green : .red)
+                                }
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            dismiss()
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title2)
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 10)
+                    
+                    // Time frame selector
+                    TimeFrameSelectorView(selectedTimeframe: $selectedTimeframe)
+                        .onChange(of: selectedTimeframe) { _, newValue in
+                            loadHistoricalDataFromFFI()
+                        }
+                        .padding(.horizontal, 20)
+                    
+                    // Fullscreen chart
+                    if isLoading {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .scaleEffect(1.5)
+                    } else if let errorMessage = errorMessage {
+                        VStack(spacing: 16) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.system(size: 48))
+                                .foregroundColor(.red)
+                            
+                            Text("Chart Error")
+                                .font(.title2)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                            
+                            Text(errorMessage)
+                                .font(.body)
+                                .foregroundColor(.gray)
+                                .multilineTextAlignment(.center)
+                            
+                            Button("Retry") {
+                                loadHistoricalDataFromFFI()
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 12)
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        TradingViewChartView(data: historicalData,
+                                           isPositive: cryptocurrency.quote.USD.percent_change_24h >= 0,
+                                           timeframe: selectedTimeframe.cmcTimeframe)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: geometry.size.height * 0.65)
+                            .padding(.horizontal, 20)
+                    }
+                    
+                    Spacer()
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+        .statusBarHidden(true) // Hide status bar for true fullscreen
+        .onAppear {
+            // Force landscape orientation
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscape))
+            }
+        }
+    }
+    
+    private func loadHistoricalDataFromFFI() {
+        isLoading = true
+        errorMessage = nil
+        
+        let symbol = cryptocurrency.symbol
+        let timeframe = selectedTimeframe.cmcTimeframe
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            let symbolCStr = symbol.cString(using: .utf8)
+            let timeframeCStr = timeframe.cString(using: .utf8)
+            
+            guard let symbolPtr = symbolCStr, let timeframePtr = timeframeCStr else {
+                DispatchQueue.main.async {
+                    self.errorMessage = "Failed to convert parameters"
+                    self.isLoading = false
+                }
+                return
+            }
+            
+            let resultCStr = get_historical_data(symbolPtr, timeframePtr)
+            
+            guard let resultCStr = resultCStr else {
+                DispatchQueue.main.async {
+                    self.errorMessage = "Failed to get historical data from FFI"
+                    self.isLoading = false
+                }
+                return
+            }
+            
+            let resultString = String(cString: resultCStr)
+            free_string(resultCStr)
+            
+            do {
+                let result = try JSONDecoder().decode(HistoricalDataResult.self, from: resultString.data(using: .utf8) ?? Data())
+                
+                DispatchQueue.main.async {
+                    if result.success {
+                        self.historicalData = result.data.map { point in
+                            ChartDataPoint(timestamp: point.timestamp, price: point.price)
+                        }
+                        self.errorMessage = nil
+                    } else {
+                        self.errorMessage = result.error ?? "Unknown error occurred"
+                    }
+                    self.isLoading = false
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.errorMessage = "Failed to parse response: \(error.localizedDescription)"
+                    self.isLoading = false
+                }
+            }
+        }
     }
 }
