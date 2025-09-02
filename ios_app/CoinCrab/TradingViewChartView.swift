@@ -1,5 +1,19 @@
 import SwiftUI
 import WebKit
+import Foundation
+
+extension String {
+    func appendToFile(url: URL) throws {
+        if FileManager.default.fileExists(atPath: url.path) {
+            let fileHandle = try FileHandle(forWritingTo: url)
+            fileHandle.seekToEndOfFile()
+            fileHandle.write(self.data(using: .utf8)!)
+            fileHandle.closeFile()
+        } else {
+            try self.write(to: url, atomically: true, encoding: .utf8)
+        }
+    }
+}
 
 struct TradingViewChartView: UIViewRepresentable {
     let data: [ChartDataPoint]
@@ -15,6 +29,10 @@ struct TradingViewChartView: UIViewRepresentable {
         configuration.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
         configuration.setValue(true, forKey: "allowUniversalAccessFromFileURLs")
         
+        // Add logging message handler
+        let coordinator = Coordinator()
+        configuration.userContentController.add(coordinator, name: "logging")
+        
         // Create WebView
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.scrollView.isScrollEnabled = false
@@ -23,6 +41,29 @@ struct TradingViewChartView: UIViewRepresentable {
         webView.isOpaque = false
         
         return webView
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+    
+    class Coordinator: NSObject, WKScriptMessageHandler {
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            if message.name == "logging" {
+                if let body = message.body as? [String: String],
+                   let timestamp = body["timestamp"],
+                   let logMessage = body["message"] {
+                    let logEntry = "\(timestamp): \(logMessage)"
+                    print("📊 TradingView JS Log: \(logEntry)")
+                    
+                    // Write to Documents directory
+                    if let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+                        let logFile = documentsPath.appendingPathComponent("tradingview_debug.log")
+                        try? (logEntry + "\n").appendToFile(url: logFile)
+                    }
+                }
+            }
+        }
     }
     
     func updateUIView(_ webView: WKWebView, context: Context) {
@@ -61,7 +102,7 @@ struct TradingViewChartView: UIViewRepresentable {
         <body>
             <div id="chartContainer"></div>
             
-            <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js" onload="logToFile('TradingView v4.1.0 library loaded')" onerror="logToFile('Failed to load v4.1.0, trying latest...'); loadFromUnpkg();"></script>
+            <script src="https://unpkg.com/lightweight-charts@latest/dist/lightweight-charts.standalone.production.js" onload="logToFile('TradingView v5.0 library loaded')" onerror="logToFile('Failed to load v5.0, trying fallback...'); loadFromUnpkg();"></script>
             <script>
                 function loadFromUnpkg() {
                     const script = document.createElement('script');
@@ -76,18 +117,17 @@ struct TradingViewChartView: UIViewRepresentable {
                 function logToFile(message) {
                     console.log(message);
                     
-                    // Only show critical errors, not debug logs
-                    if (message.includes('ERROR') || message.includes('FAIL')) {
-                        let logDiv = document.getElementById('debug-log');
-                        if (!logDiv) {
-                            logDiv = document.createElement('div');
-                            logDiv.id = 'debug-log';
-                            logDiv.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; background: rgba(255,0,0,0.9); color: white; font-family: monospace; font-size: 12px; z-index: 9999; padding: 5px;';
-                            document.body.appendChild(logDiv);
-                        }
-                        
-                        const timestamp = new Date().toISOString().substr(11, 8);
-                        logDiv.innerHTML = timestamp + ': ' + message;
+                    // Only log to filesystem, no overlay
+                    const timestamp = new Date().toISOString().substr(11, 8);
+                    
+                    // Write to iOS app documents directory via Swift
+                    try {
+                        window.webkit.messageHandlers.logging.postMessage({
+                            timestamp: timestamp,
+                            message: message
+                        });
+                    } catch (e) {
+                        // Silently fail if message handler not available
                     }
                 }
                 
@@ -190,16 +230,119 @@ struct TradingViewChartView: UIViewRepresentable {
                                     allMethods.push(prop);
                                 }
                             }
-                            logToFile('TradingView: All function methods: ' + allMethods.join(', '));
+                            logToFile('TradingView v5.0: All function methods: ' + allMethods.join(', '));
+                            
+                            // Check TradingView v5.0 constants and methods
+                            logToFile('TradingView v5.0: addSeries method: ' + (typeof chart.addSeries));
+                            logToFile('TradingView v5.0: BaselineSeries constant: ' + (typeof LightweightCharts.BaselineSeries));
+                            logToFile('TradingView v5.0: AreaSeries constant: ' + (typeof LightweightCharts.AreaSeries));
+                            logToFile('TradingView v5.0: LineSeries constant: ' + (typeof LightweightCharts.LineSeries));
+                            
+                            // Check if old methods still exist
+                            logToFile('TradingView v5.0: addBaselineSeries (old): ' + (typeof chart.addBaselineSeries));
+                            logToFile('TradingView v5.0: addLineSeries (old): ' + (typeof chart.addLineSeries));
+                            logToFile('TradingView v5.0: addAreaSeries (old): ' + (typeof chart.addAreaSeries));
                             
                             // Try different API patterns that might exist
                             let seriesCreated = false;
                             
-                            // Create line series for dynamic coloring
-                            if (chart.addLineSeries && typeof chart.addLineSeries === 'function') {
+                            // Try TradingView v5.0 API with BaselineSeries constant
+                            if (chart.addSeries && typeof chart.addSeries === 'function') {
                                 try {
-                                    areaSeries = chart.addLineSeries({
-                                        color: '#00FF00', // Default green, will be overridden
+                                    logToFile('Using TradingView v5.0 API with BaselineSeries constant');
+                                    
+                                    // Get start price for baseline - need to access it here first
+                                    const chartData = \(chartData);
+                                    let baselinePrice = 108000; // Default baseline closer to BTC range
+                                    
+                                    logToFile('Raw chartData type: ' + typeof chartData);
+                                    logToFile('Raw chartData: ' + JSON.stringify(chartData).substring(0, 200));
+                                    
+                                    if (chartData && chartData.length > 0) {
+                                        const firstPoint = chartData[0];
+                                        logToFile('First data point: ' + JSON.stringify(firstPoint));
+                                        
+                                        // Try different property names
+                                        baselinePrice = firstPoint.value || firstPoint.price || firstPoint.y || 108000;
+                                        logToFile('Extracted baseline price: $' + baselinePrice);
+                                    } else {
+                                        logToFile('No chart data available for baseline');
+                                    }
+                                    
+                                    // Check if BaselineSeries constant is available in LightweightCharts namespace
+                                    if (typeof LightweightCharts.BaselineSeries !== 'undefined') {
+                                        logToFile('BaselineSeries constant found, creating baseline series');
+                                        areaSeries = chart.addSeries(LightweightCharts.BaselineSeries, {
+                                            baseValue: { type: 'price', value: baselinePrice },  // Revert to object format
+                                            topLineColor: '#00FF00',
+                                            topFillColor1: 'rgba(0, 255, 0, 0.4)',
+                                            topFillColor2: 'rgba(0, 255, 0, 0.1)',
+                                            bottomLineColor: '#FF0000', 
+                                            bottomFillColor1: 'rgba(255, 0, 0, 0.4)',
+                                            bottomFillColor2: 'rgba(255, 0, 0, 0.1)',
+                                            lineWidth: 2,
+                                            lineStyle: 0,
+                                            priceFormat: {
+                                                type: 'price',
+                                                precision: 2,
+                                                minMove: 0.01,
+                                            },
+                                        });
+                                        logToFile('SUCCESS: TradingView v5.0 Baseline series created with start price: $' + baselinePrice.toFixed(2));
+                                        logToFile('Baseline series type: ' + typeof areaSeries);
+                                        logToFile('Baseline configuration - baseValue: ' + baselinePrice);
+                                        seriesCreated = true;
+                                    } else {
+                                        logToFile('BaselineSeries constant not found, trying AreaSeries');
+                                        if (typeof LightweightCharts.AreaSeries !== 'undefined') {
+                                            areaSeries = chart.addSeries(LightweightCharts.AreaSeries, {
+                                                lineColor: '#00FF00',
+                                                topColor: 'rgba(0, 255, 0, 0.1)',
+                                                bottomColor: 'rgba(0, 0, 0, 0)',
+                                                lineWidth: 3,
+                                                priceFormat: {
+                                                    type: 'price',
+                                                    precision: 2,
+                                                    minMove: 0.01,
+                                                },
+                                            });
+                                            logToFile('SUCCESS: TradingView v5.0 Area series created!');
+                                            seriesCreated = true;
+                                        } else {
+                                            logToFile('Neither BaselineSeries nor AreaSeries constants found');
+                                        }
+                                    }
+                                } catch (seriesError) {
+                                    logToFile('TradingView v5.0 series creation failed: ' + seriesError.message);
+                                    // Fallback to LineSeries
+                                    try {
+                                        if (typeof LightweightCharts.LineSeries !== 'undefined') {
+                                            areaSeries = chart.addSeries(LightweightCharts.LineSeries, {
+                                                color: '#00FF00',
+                                                lineWidth: 3,
+                                                priceFormat: {
+                                                    type: 'price',
+                                                    precision: 2,
+                                                    minMove: 0.01,
+                                                },
+                                            });
+                                            logToFile('SUCCESS: TradingView v5.0 Line series created as fallback!');
+                                            seriesCreated = true;
+                                        } else {
+                                            logToFile('LineSeries constant also not found');
+                                        }
+                                    } catch (lineError) {
+                                        logToFile('Line series fallback also failed: ' + lineError.message);
+                                    }
+                                }
+                            }
+                            // Fallback to area series if baseline not available
+                            else if (chart.addAreaSeries && typeof chart.addAreaSeries === 'function') {
+                                try {
+                                    areaSeries = chart.addAreaSeries({
+                                        lineColor: '#00FF00',
+                                        topColor: 'rgba(0, 255, 0, 0.1)', 
+                                        bottomColor: 'rgba(0, 0, 0, 0)',
                                         lineWidth: 3,
                                         priceFormat: {
                                             type: 'price',
@@ -207,10 +350,10 @@ struct TradingViewChartView: UIViewRepresentable {
                                             minMove: 0.01,
                                         },
                                     });
-                                    logToFile('SUCCESS: Dynamic color line series created!');
+                                    logToFile('SUCCESS: Area series created!');
                                     seriesCreated = true;
-                                } catch (lineError) {
-                                    logToFile('Line series failed: ' + lineError.message);
+                                } catch (areaError) {
+                                    logToFile('Area series failed: ' + areaError.message);
                                 }
                             }
                             // Pattern 2: Try correct TradingView API with proper series types
@@ -285,22 +428,25 @@ struct TradingViewChartView: UIViewRepresentable {
                                     ];
                                 }
                                 
-                                // Apply dynamic coloring based on start price
+                                // Set data and verify baseline is working
                                 if (dataToUse.length > 0) {
                                     const startPrice = dataToUse[0].value;
+                                    const endPrice = dataToUse[dataToUse.length - 1].value;
+                                    logToFile('Data range - Start: $' + startPrice.toFixed(2) + ', End: $' + endPrice.toFixed(2));
                                     
-                                    // Create data with individual colors
-                                    const coloredData = dataToUse.map(point => ({
-                                        time: point.time,
-                                        value: point.value,
-                                        color: point.value >= startPrice ? '#00FF00' : '#FF0000' // Green above, red below start price
-                                    }));
+                                    // Find min/max for debugging
+                                    const prices = dataToUse.map(p => p.value);
+                                    const minPrice = Math.min(...prices);
+                                    const maxPrice = Math.max(...prices);
+                                    logToFile('Price range - Min: $' + minPrice.toFixed(2) + ', Max: $' + maxPrice.toFixed(2));
                                     
-                                    areaSeries.setData(coloredData);
-                                    logToFile('Applied dynamic coloring based on start price: $' + startPrice.toFixed(2));
-                                } else {
-                                    areaSeries.setData(dataToUse);
+                                    // Check if baseline should show both colors
+                                    const pointsAbove = prices.filter(p => p > startPrice).length;
+                                    const pointsBelow = prices.filter(p => p < startPrice).length;
+                                    logToFile('Points above start: ' + pointsAbove + ', below start: ' + pointsBelow);
                                 }
+                                
+                                areaSeries.setData(dataToUse);
                                 
                                 // Add reference lines for start and end prices (without labels)
                                 if (dataToUse.length > 1) {
