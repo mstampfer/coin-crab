@@ -383,9 +383,9 @@ pub extern "C" fn get_crypto_data() -> *mut c_char {
                 }
             }
             
-            // Give MQTT more time to connect and receive initial data
+            // Give MQTT time to connect and receive initial data (reduced from 5s to 2s)
             debug_log("get_crypto_data: Waiting for MQTT connection and initial data...");
-            std::thread::sleep(Duration::from_millis(5000));
+            std::thread::sleep(Duration::from_millis(2000));
         } else {
             debug_log("get_crypto_data: Using existing MQTT client");
         }

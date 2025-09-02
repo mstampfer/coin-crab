@@ -186,6 +186,7 @@ struct TradingViewChartView: UIViewRepresentable {
                                 layout: {
                                     background: { type: 'solid', color: '#000000' },
                                     textColor: '#ffffff',
+                                    attributionLogo: false,
                                 },
                                 grid: {
                                     vertLines: { color: 'rgba(255, 255, 255, 0.1)' },

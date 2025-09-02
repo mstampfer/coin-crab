@@ -58,6 +58,8 @@ class CryptoDataManager: ObservableObject {
     @Published var isDataCached = false
     
     private var refreshTimer: Timer?
+    private var retryAttempts = 0
+    private let maxRetryAttempts = 5
     
     init() {
         print("CryptoDataManager: Initializing with Rust FFI delegation architecture")
@@ -69,16 +71,17 @@ class CryptoDataManager: ObservableObject {
     }
     
     func fetchCryptoPrices() {
-        print("fetchCryptoPrices: Calling Rust get_crypto_data() function")
+        print("fetchCryptoPrices: Calling Rust get_crypto_data() function (attempt \(retryAttempts + 1)/\(maxRetryAttempts))")
         isLoading = true
         errorMessage = nil
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            
             // Call Rust function that handles all networking internally (will use MQTT)
             guard let resultPtr = get_crypto_data() else {
                 DispatchQueue.main.async {
-                    self?.errorMessage = "Failed to call Rust function"
-                    self?.isLoading = false
+                    self.handleFetchError("Failed to call Rust function")
                 }
                 return
             }
@@ -93,24 +96,51 @@ class CryptoDataManager: ObservableObject {
                 
                 DispatchQueue.main.async {
                     if result.success, let data = result.data {
-                        self?.cryptocurrencies = data
-                        self?.lastUpdated = result.last_updated ?? DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
-                        self?.isDataCached = result.cached
-                        self?.errorMessage = nil
+                        // Success - reset retry counter
+                        self.retryAttempts = 0
+                        self.cryptocurrencies = data
+                        self.lastUpdated = result.last_updated ?? DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
+                        self.isDataCached = result.cached
+                        self.errorMessage = nil
+                        self.isLoading = false
                         print("SUCCESS: Updated \(data.count) cryptocurrencies from Rust")
                     } else {
-                        self?.errorMessage = result.error ?? "Unknown error from Rust"
-                        print("ERROR from Rust: \(result.error ?? "Unknown")")
+                        // Handle error with retry logic
+                        let errorMsg = result.error ?? "Unknown error from Rust"
+                        print("ERROR from Rust: \(errorMsg)")
+                        self.handleFetchError(errorMsg)
                     }
-                    self?.isLoading = false
                 }
             } catch {
                 DispatchQueue.main.async {
-                    self?.errorMessage = "Failed to parse Rust response: \(error.localizedDescription)"
-                    self?.isLoading = false
+                    let errorMsg = "Failed to parse Rust response: \(error.localizedDescription)"
                     print("ERROR parsing Rust response: \(error)")
+                    self.handleFetchError(errorMsg)
                 }
             }
+        }
+    }
+    
+    private func handleFetchError(_ errorMsg: String) {
+        retryAttempts += 1
+        
+        if retryAttempts <= maxRetryAttempts {
+            // Calculate exponential backoff delay: 2^attempt seconds (2, 4, 8, 16, 32)
+            let delay = TimeInterval(min(pow(2.0, Double(retryAttempts)), 32.0))
+            print("fetchCryptoPrices: Attempt \(retryAttempts) failed, retrying in \(Int(delay)) seconds...")
+            
+            // Show retry message to user
+            self.errorMessage = "Loading crypto prices... (attempt \(retryAttempts)/\(maxRetryAttempts))"
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                self.fetchCryptoPrices()
+            }
+        } else {
+            // Max retries exceeded
+            print("fetchCryptoPrices: All \(maxRetryAttempts) attempts failed, giving up")
+            self.errorMessage = "Unable to load crypto prices. Please check your connection and try again."
+            self.isLoading = false
+            self.retryAttempts = 0 // Reset for next manual refresh
         }
     }
     
@@ -127,6 +157,7 @@ class CryptoDataManager: ObservableObject {
     
     func manualRefresh() {
         print("Manual refresh requested - calling Rust")
+        retryAttempts = 0 // Reset retry counter for manual refresh
         fetchCryptoPrices()
     }
 }
@@ -218,7 +249,9 @@ struct MarketsView: View {
                     // Coin List
                     CoinListHeaderView()
                     
-                    if cryptoManager.cryptocurrencies.isEmpty && !cryptoManager.isLoading {
+                    if cryptoManager.isLoading && cryptoManager.cryptocurrencies.isEmpty {
+                        LoadingStateView(errorMessage: cryptoManager.errorMessage)
+                    } else if cryptoManager.cryptocurrencies.isEmpty && !cryptoManager.isLoading {
                         EmptyStateView()
                     } else {
                         ModernCryptoListView(cryptocurrencies: cryptoManager.cryptocurrencies)
@@ -894,6 +927,38 @@ struct MiniChartView: View {
         }
         
         return points
+    }
+}
+
+struct LoadingStateView: View {
+    let errorMessage: String?
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            ProgressView()
+                .progressViewStyle(CircularProgressViewStyle(tint: .blue))
+                .scaleEffect(1.5)
+            
+            Text("Loading crypto prices...")
+                .font(.title2)
+                .fontWeight(.medium)
+                .foregroundColor(.white)
+            
+            if let errorMessage = errorMessage, !errorMessage.isEmpty {
+                Text(errorMessage)
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 20)
+            } else {
+                Text("Connecting to MQTT broker...")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black)
     }
 }
 
