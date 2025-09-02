@@ -8,6 +8,7 @@ struct CryptoChartView: View {
     @State private var historicalData: [ChartDataPoint] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var showingFullscreen = false
     @Environment(\.presentationMode) var presentationMode
     
     enum TimeFrame: String, CaseIterable {
@@ -102,19 +103,7 @@ struct CryptoChartView: View {
                                 
                                 // Fullscreen button
                                 Button(action: {
-                                    let fullscreenView = FullscreenChartView(
-                                        data: historicalData,
-                                        isPositive: cryptocurrency.quote.USD.percent_change_24h >= 0,
-                                        timeframe: selectedTimeframe.cmcTimeframe,
-                                        cryptocurrency: cryptocurrency,
-                                        selectedTimeframe: selectedTimeframe
-                                    )
-                                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                                       let window = windowScene.windows.first {
-                                        let hostingController = UIHostingController(rootView: fullscreenView)
-                                        hostingController.modalPresentationStyle = .fullScreen
-                                        window.rootViewController?.present(hostingController, animated: true)
-                                    }
+                                    showingFullscreen = true
                                 }) {
                                     Image(systemName: "arrow.up.left.and.arrow.down.right")
                                         .foregroundColor(.white)
@@ -137,6 +126,15 @@ struct CryptoChartView: View {
         .preferredColorScheme(.dark)
         .onAppear {
             loadHistoricalDataFromFFI()
+        }
+        .fullScreenCover(isPresented: $showingFullscreen) {
+            FullscreenChartView(
+                data: historicalData,
+                isPositive: cryptocurrency.quote.USD.percent_change_24h >= 0,
+                timeframe: selectedTimeframe.cmcTimeframe,
+                cryptocurrency: cryptocurrency,
+                selectedTimeframe: selectedTimeframe
+            )
         }
     }
     
