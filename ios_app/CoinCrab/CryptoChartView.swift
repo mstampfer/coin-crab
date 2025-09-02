@@ -555,8 +555,9 @@ struct FullscreenChartView: View {
                                            isPositive: cryptocurrency.quote.USD.percent_change_24h >= 0,
                                            timeframe: selectedTimeframe.cmcTimeframe)
                             .frame(maxWidth: .infinity)
-                            .frame(height: geometry.size.height * 0.65)
-                            .padding(.horizontal, 20)
+                            .frame(height: max(geometry.size.height * 0.6, 300))
+                            .padding(.horizontal, 16)
+                            .id("fullscreen-chart-\(selectedTimeframe.rawValue)") // Force refresh on timeframe change
                     }
                     
                     Spacer()
@@ -566,10 +567,16 @@ struct FullscreenChartView: View {
         .preferredColorScheme(.dark)
         .statusBarHidden(true) // Hide status bar for true fullscreen
         .onAppear {
-            // Force landscape orientation
+            // Force landscape orientation using device orientation
+            UIDevice.current.setValue(UIInterfaceOrientation.landscapeRight.rawValue, forKey: "orientation")
+            // Lock to landscape
             if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
                 windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscape))
             }
+        }
+        .onDisappear {
+            // Return to portrait when dismissed
+            UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
         }
     }
     
