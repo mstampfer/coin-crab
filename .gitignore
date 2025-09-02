@@ -16,3 +16,6 @@ ios_app/*.xcodeproj/xcuserdata/
 
 # Binary files
 *.a
+
+# Claude Code local configuration
+CLAUDE.local.md

@@ -139,11 +139,43 @@ struct TradingViewChartView: UIViewRepresentable {
                             
                             logToFile('Using chart dimensions: ' + chartWidth + 'x' + chartHeight);
                             
-                            // Try absolute minimal chart configuration
-                            logToFile('Trying minimal chart config...');
+                            // Create chart with proper dark theme styling
                             chart = LightweightCharts.createChart(container, {
                                 width: chartWidth,
                                 height: chartHeight,
+                                layout: {
+                                    background: { type: 'solid', color: '#000000' },
+                                    textColor: '#ffffff',
+                                },
+                                grid: {
+                                    vertLines: { color: 'rgba(255, 255, 255, 0.1)' },
+                                    horzLines: { color: 'rgba(255, 255, 255, 0.1)' },
+                                },
+                                timeScale: {
+                                    timeVisible: true,
+                                    secondsVisible: false,
+                                    borderColor: 'rgba(255, 255, 255, 0.2)',
+                                    tickMarkFormatter: (time, tickMarkType, locale) => {
+                                        const date = new Date(time * 1000);
+                                        if (tickMarkType === 0) { // Year
+                                            return date.getFullYear().toString();
+                                        } else if (tickMarkType === 1) { // Month
+                                            return date.toLocaleDateString('en-US', { month: 'short' });
+                                        } else if (tickMarkType === 2) { // Day of Month
+                                            return date.getDate().toString();
+                                        } else if (tickMarkType === 3) { // Time
+                                            return date.toLocaleTimeString('en-US', { 
+                                                hour: '2-digit', 
+                                                minute: '2-digit',
+                                                hour12: false 
+                                            });
+                                        }
+                                        return '';
+                                    }
+                                },
+                                rightPriceScale: {
+                                    borderColor: 'rgba(255, 255, 255, 0.2)',
+                                },
                             });
                             logToFile('TradingView: Chart created successfully');
                             
@@ -163,34 +195,22 @@ struct TradingViewChartView: UIViewRepresentable {
                             // Try different API patterns that might exist
                             let seriesCreated = false;
                             
-                            // Pattern 1: Try v4.x API first
+                            // Create line series for dynamic coloring
                             if (chart.addLineSeries && typeof chart.addLineSeries === 'function') {
-                                logToFile('Using v4.x addLineSeries API');
                                 try {
                                     areaSeries = chart.addLineSeries({
-                                        color: '\(chartColor)',
-                                        lineWidth: 2,
+                                        color: '#00FF00', // Default green, will be overridden
+                                        lineWidth: 3,
+                                        priceFormat: {
+                                            type: 'price',
+                                            precision: 2,
+                                            minMove: 0.01,
+                                        },
                                     });
-                                    logToFile('SUCCESS: v4.x line series created!');
+                                    logToFile('SUCCESS: Dynamic color line series created!');
                                     seriesCreated = true;
-                                } catch (v4Error) {
-                                    logToFile('v4.x line series failed: ' + v4Error.message);
-                                }
-                            }
-                            // Try area series if line series worked
-                            else if (chart.addAreaSeries && typeof chart.addAreaSeries === 'function') {
-                                logToFile('Using v4.x addAreaSeries API');
-                                try {
-                                    areaSeries = chart.addAreaSeries({
-                                        lineColor: '\(chartColor)',
-                                        topColor: '\(fillColor)',
-                                        bottomColor: 'rgba(0, 0, 0, 0)',
-                                        lineWidth: 2,
-                                    });
-                                    logToFile('SUCCESS: v4.x area series created!');
-                                    seriesCreated = true;
-                                } catch (v4AreaError) {
-                                    logToFile('v4.x area series failed: ' + v4AreaError.message);
+                                } catch (lineError) {
+                                    logToFile('Line series failed: ' + lineError.message);
                                 }
                             }
                             // Pattern 2: Try correct TradingView API with proper series types
@@ -248,26 +268,70 @@ struct TradingViewChartView: UIViewRepresentable {
                             }
                         }
                         
-                        // Use real chart data from Swift
+                        // Use real chart data with reference lines
                         if (areaSeries) {
                             try {
                                 const chartData = \(chartData);
-                                if (chartData && chartData.length > 0) {
-                                    logToFile('Setting real chart data (' + chartData.length + ' points)');
-                                    areaSeries.setData(chartData);
-                                    chart.timeScale().fitContent();
-                                } else {
+                                let dataToUse = chartData;
+                                
+                                if (!chartData || chartData.length === 0) {
                                     // Fallback to test data if no real data
-                                    const testData = [
+                                    dataToUse = [
                                         { time: 1725148800, value: 58000 },
                                         { time: 1725152400, value: 58200 },
                                         { time: 1725156000, value: 58100 },
                                         { time: 1725159600, value: 58400 },
                                         { time: 1725163200, value: 58300 }
                                     ];
-                                    areaSeries.setData(testData);
-                                    chart.timeScale().fitContent();
                                 }
+                                
+                                // Apply dynamic coloring based on start price
+                                if (dataToUse.length > 0) {
+                                    const startPrice = dataToUse[0].value;
+                                    
+                                    // Create data with individual colors
+                                    const coloredData = dataToUse.map(point => ({
+                                        time: point.time,
+                                        value: point.value,
+                                        color: point.value >= startPrice ? '#00FF00' : '#FF0000' // Green above, red below start price
+                                    }));
+                                    
+                                    areaSeries.setData(coloredData);
+                                    logToFile('Applied dynamic coloring based on start price: $' + startPrice.toFixed(2));
+                                } else {
+                                    areaSeries.setData(dataToUse);
+                                }
+                                
+                                // Add reference lines for start and end prices (without labels)
+                                if (dataToUse.length > 1) {
+                                    const startPrice = dataToUse[0].value;
+                                    const endPrice = dataToUse[dataToUse.length - 1].value;
+                                    
+                                    // Add start price line (no title/label)
+                                    const startPriceLine = areaSeries.createPriceLine({
+                                        price: startPrice,
+                                        color: 'rgba(255, 255, 255, 0.3)',
+                                        lineWidth: 1,
+                                        lineStyle: 2, // Dashed line
+                                        axisLabelVisible: true,
+                                        title: '', // Remove label
+                                    });
+                                    
+                                    // Add end price line (no title/label)
+                                    const endPriceLine = areaSeries.createPriceLine({
+                                        price: endPrice,
+                                        color: 'rgba(255, 255, 255, 0.3)',
+                                        lineWidth: 1,
+                                        lineStyle: 2, // Dashed line
+                                        axisLabelVisible: true,
+                                        title: '', // Remove label
+                                    });
+                                }
+                                
+                                // Fit content with some padding
+                                chart.timeScale().fitContent();
+                                
+                                logToFile('Chart data and reference lines set successfully');
                             } catch (dataError) {
                                 logToFile('ERROR setting chart data: ' + dataError.message);
                             }
