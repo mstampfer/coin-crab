@@ -93,7 +93,7 @@ struct CryptoChartView: View {
                     } else {
                         VStack(spacing: 0) {
                             // Chart with fullscreen button
-                            ZStack(alignment: .topTrailing) {
+                            ZStack(alignment: .bottomTrailing) {
                                 let _ = print("📊 COINCRAB: Passing \(historicalData.count) data points to TradingViewChartView")
                                 TradingViewChartView(data: historicalData, 
                                                    isPositive: cryptocurrency.quote.USD.percent_change_24h >= 0,
@@ -126,6 +126,11 @@ struct CryptoChartView: View {
         .preferredColorScheme(.dark)
         .onAppear {
             loadHistoricalDataFromFFI()
+            
+            // Ensure portrait orientation is allowed for main view
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .allButUpsideDown))
+            }
         }
         .fullScreenCover(isPresented: $showingFullscreen) {
             FullscreenChartView(
@@ -551,12 +556,16 @@ struct FullscreenChartView: View {
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
+                        // Calculate optimal chart height based on available space
+                        let isLandscape = geometry.size.width > geometry.size.height
+                        let chartHeight = isLandscape ? geometry.size.height * 0.65 : max(geometry.size.height * 0.5, 300)
+                        
                         TradingViewChartView(data: historicalData,
                                            isPositive: cryptocurrency.quote.USD.percent_change_24h >= 0,
                                            timeframe: selectedTimeframe.cmcTimeframe)
                             .frame(maxWidth: .infinity)
-                            .frame(height: max(geometry.size.height * 0.6, 300))
-                            .padding(.horizontal, 16)
+                            .frame(height: chartHeight)
+                            .padding(.horizontal, isLandscape ? 12 : 16)
                             .id("fullscreen-chart-\(selectedTimeframe.rawValue)") // Force refresh on timeframe change
                     }
                     
@@ -567,16 +576,23 @@ struct FullscreenChartView: View {
         .preferredColorScheme(.dark)
         .statusBarHidden(true) // Hide status bar for true fullscreen
         .onAppear {
-            // Force landscape orientation using device orientation
-            UIDevice.current.setValue(UIInterfaceOrientation.landscapeRight.rawValue, forKey: "orientation")
-            // Lock to landscape
+            // Request landscape orientation
             if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
                 windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscape))
             }
         }
         .onDisappear {
-            // Return to portrait when dismissed
-            UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
+            // Allow all orientations when dismissed
+            DispatchQueue.main.async {
+                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                    windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .allButUpsideDown))
+                }
+                
+                // Force portrait after a brief delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
+                }
+            }
         }
     }
     

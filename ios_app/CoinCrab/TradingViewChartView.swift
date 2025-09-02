@@ -97,6 +97,8 @@ struct TradingViewChartView: UIViewRepresentable {
                     width: 100%;
                     height: 100vh;
                     background-color: transparent;
+                    padding-bottom: 25px;
+                    box-sizing: border-box;
                 }
                 /* Smaller font for time axis labels to allow more tick marks */
                 .tv-lightweight-charts table tr td {
@@ -201,9 +203,13 @@ struct TradingViewChartView: UIViewRepresentable {
                                     timeVisible: true,
                                     secondsVisible: false,
                                     borderColor: 'rgba(255, 255, 255, 0.2)',
+                                    rightOffset: 5,
+                                    barSpacing: 8,
                                     fixLeftEdge: true,
                                     fixRightEdge: true,
                                     lockVisibleTimeRangeOnResize: true,
+                                    rightBarStaysOnScroll: true,
+                                    shiftVisibleRangeOnNewBar: false,
                                     tickMarkFormatter: (time, tickMarkType, locale) => {
                                         const date = new Date(time * 1000);
                                         const timeframe = '\(timeframe)';
@@ -233,6 +239,17 @@ struct TradingViewChartView: UIViewRepresentable {
                                 },
                                 rightPriceScale: {
                                     borderColor: 'rgba(255, 255, 255, 0.2)',
+                                },
+                                handleScroll: {
+                                    mouseWheel: true,
+                                    pressedMouseMove: true,
+                                    horzTouchDrag: true,
+                                    vertTouchDrag: false,
+                                },
+                                handleScale: {
+                                    axisPressedMouseMove: true,
+                                    mouseWheel: true,
+                                    pinch: true,
                                 },
                             });
                             logToFile('TradingView: Chart created successfully');
@@ -291,17 +308,17 @@ struct TradingViewChartView: UIViewRepresentable {
                                     
                                     // Apply price formatter using localization as per API documentation
                                     try {
-                                        logToFile('Applying price formatter with precision: ' + precision);
-                                        
-                                        const precision = baselinePrice >= 1000 ? 0 : baselinePrice >= 100 ? 1 : baselinePrice >= 10 ? 2 : baselinePrice >= 1 ? 3 : baselinePrice >= 0.01 ? 4 : 6;
-                                        
                                         const myPriceFormatter = function(price) {
+                                            // Calculate precision based on the actual price being formatted
+                                            const precision = price >= 1000 ? 0 : price >= 100 ? 1 : price >= 10 ? 2 : price >= 1 ? 3 : price >= 0.01 ? 4 : 6;
                                             const fixed = price.toFixed(precision);
                                             const [whole, decimal] = fixed.split('.');
                                             const withCommas = whole.replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');
-                                            const result = decimal && decimal !== '00' ? withCommas + '.' + decimal : withCommas;
+                                            const result = decimal && decimal !== '00' && decimal !== '0' ? withCommas + '.' + decimal : withCommas;
                                             return result;
                                         };
+                                        
+                                        logToFile('Applying price formatter with dynamic precision based on price value');
                                         
                                         chart.applyOptions({
                                             localization: {
@@ -552,25 +569,23 @@ struct TradingViewChartView: UIViewRepresentable {
                                     const firstTime = dataToUse[0].time;
                                     const lastTime = dataToUse[dataToUse.length - 1].time;
                                     
-                                    // Set visible range to show all data with padding
-                                    const padding = (lastTime - firstTime) * 0.05; // 5% padding on each side
+                                    // Set visible range to show all data spanning full width
                                     chart.timeScale().setVisibleRange({
-                                        from: firstTime - padding,
-                                        to: lastTime + padding
+                                        from: firstTime,
+                                        to: lastTime
                                     });
                                     
-                                    // Force more tick marks for 1h timeframe
-                                    if (timeframe === '1h') {
-                                        // Apply additional options to encourage more tick marks
-                                        chart.applyOptions({
-                                            timeScale: {
-                                                minBarSpacing: 0.5, // Allow bars to be closer together
-                                                rightOffset: 5,
-                                                barSpacing: 2,
-                                            }
-                                        });
-                                        logToFile('Applied 1h specific spacing options for more tick marks');
-                                    }
+                                    // Configure better tick mark spacing for all timeframes
+                                    chart.applyOptions({
+                                        timeScale: {
+                                            minBarSpacing: 1,
+                                            barSpacing: timeframe === '1h' ? 3 : 6,
+                                            rightOffset: 12,
+                                            ticksVisible: true,
+                                            uniformDistribution: true,
+                                        }
+                                    });
+                                    logToFile('Applied improved tick mark spacing for ' + timeframe);
                                     
                                     logToFile('Set visible time range from ' + new Date(firstTime * 1000) + ' to ' + new Date(lastTime * 1000));
                                 } else {
