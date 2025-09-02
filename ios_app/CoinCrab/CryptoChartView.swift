@@ -90,6 +90,7 @@ struct CryptoChartView: View {
                             loadHistoricalDataFromFFI()
                         }
                     } else {
+                        let _ = print("📊 COINCRAB: Passing \(historicalData.count) data points to TradingViewChartView")
                         TradingViewChartView(data: historicalData, 
                                            isPositive: cryptocurrency.quote.USD.percent_change_24h >= 0)
                             .frame(maxWidth: .infinity)

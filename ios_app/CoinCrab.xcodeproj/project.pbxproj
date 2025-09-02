@@ -13,6 +13,7 @@
 		ABCD1234567890B2 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ABCD1234567890B1 /* Preview Assets.xcassets */; };
 		ABCD1234567890B6 /* rust_ios_lib.h in Headers */ = {isa = PBXBuildFile; fileRef = ABCD1234567890B5 /* rust_ios_lib.h */; };
 		ABCD1234567890C0 /* CryptoChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD1234567890BF /* CryptoChartView.swift */; };
+		ABCD123456789021D4 /* TradingViewChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD1234567890C26A /* TradingViewChartView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -24,6 +25,7 @@
 		ABCD1234567890B5 /* rust_ios_lib.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = rust_ios_lib.h; path = ../rust_ios_lib.h; sourceTree = "<group>"; };
 		ABCD1234567890B7 /* CoinCrab-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "CoinCrab-Bridging-Header.h"; sourceTree = "<group>"; };
 		ABCD1234567890BF /* CryptoChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CryptoChartView.swift; sourceTree = "<group>"; };
+		ABCD1234567890C26A /* TradingViewChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TradingViewChartView.swift; sourceTree = "<group>"; };
 		ABCD1234567890C3 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -61,6 +63,7 @@
 				ABCD1234567890AA /* CoinCrabApp.swift */,
 				ABCD1234567890AC /* ContentView.swift */,
 				ABCD1234567890BF /* CryptoChartView.swift */,
+				ABCD1234567890C26A /* TradingViewChartView.swift */,
 				ABCD1234567890C3 /* Info.plist */,
 				ABCD1234567890AE /* Assets.xcassets */,
 				ABCD1234567890B0 /* Preview Content */,
@@ -170,6 +173,7 @@
 				ABCD1234567890AD /* ContentView.swift in Sources */,
 				ABCD1234567890AB /* CoinCrabApp.swift in Sources */,
 				ABCD1234567890C0 /* CryptoChartView.swift in Sources */,
+				ABCD123456789021D4 /* TradingViewChartView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
