@@ -18,6 +18,7 @@ extension String {
 struct TradingViewChartView: UIViewRepresentable {
     let data: [ChartDataPoint]
     let isPositive: Bool
+    let timeframe: String
     
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
@@ -96,6 +97,10 @@ struct TradingViewChartView: UIViewRepresentable {
                     width: 100%;
                     height: 100vh;
                     background-color: transparent;
+                }
+                /* Smaller font for time axis labels to allow more tick marks */
+                .tv-lightweight-charts table tr td {
+                    font-size: 10px !important;
                 }
             </style>
         </head>
@@ -196,22 +201,34 @@ struct TradingViewChartView: UIViewRepresentable {
                                     timeVisible: true,
                                     secondsVisible: false,
                                     borderColor: 'rgba(255, 255, 255, 0.2)',
+                                    fixLeftEdge: true,
+                                    fixRightEdge: true,
+                                    lockVisibleTimeRangeOnResize: true,
                                     tickMarkFormatter: (time, tickMarkType, locale) => {
                                         const date = new Date(time * 1000);
-                                        if (tickMarkType === 0) { // Year
-                                            return date.getFullYear().toString();
-                                        } else if (tickMarkType === 1) { // Month
-                                            return date.toLocaleDateString('en-US', { month: 'short' });
-                                        } else if (tickMarkType === 2) { // Day of Month
-                                            return date.getDate().toString();
-                                        } else if (tickMarkType === 3) { // Time
+                                        const timeframe = '\(timeframe)';
+                                        
+                                        // Custom formatting based on timeframe
+                                        if (timeframe === '1h') {
+                                            // 1H: Show time as hh:mm (changed from hh:mm:ss)
                                             return date.toLocaleTimeString('en-US', { 
                                                 hour: '2-digit', 
                                                 minute: '2-digit',
                                                 hour12: false 
                                             });
+                                        } else if (timeframe === '24h') {
+                                            // 24H: Show time as hh:mm
+                                            return date.toLocaleTimeString('en-US', { 
+                                                hour: '2-digit', 
+                                                minute: '2-digit',
+                                                hour12: false 
+                                            });
+                                        } else {
+                                            // All others: Show date as dd/mm
+                                            const day = String(date.getDate()).padStart(2, '0');
+                                            const month = String(date.getMonth() + 1).padStart(2, '0');
+                                            return `${day}/${month}`;
                                         }
-                                        return '';
                                     }
                                 },
                                 rightPriceScale: {
@@ -219,6 +236,8 @@ struct TradingViewChartView: UIViewRepresentable {
                                 },
                             });
                             logToFile('TradingView: Chart created successfully');
+                            
+                            // Price formatting will be applied after data is loaded
                             
                             // Debug: Show what methods are actually available
                             logToFile('TradingView: Chart object type: ' + typeof chart);
@@ -270,6 +289,30 @@ struct TradingViewChartView: UIViewRepresentable {
                                         logToFile('No chart data available for baseline');
                                     }
                                     
+                                    // Apply price formatter using localization as per API documentation
+                                    try {
+                                        logToFile('Applying price formatter with precision: ' + precision);
+                                        
+                                        const precision = baselinePrice >= 1000 ? 0 : baselinePrice >= 100 ? 1 : baselinePrice >= 10 ? 2 : baselinePrice >= 1 ? 3 : baselinePrice >= 0.01 ? 4 : 6;
+                                        
+                                        const myPriceFormatter = function(price) {
+                                            const fixed = price.toFixed(precision);
+                                            const [whole, decimal] = fixed.split('.');
+                                            const withCommas = whole.replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');
+                                            const result = decimal && decimal !== '00' ? withCommas + '.' + decimal : withCommas;
+                                            return result;
+                                        };
+                                        
+                                        chart.applyOptions({
+                                            localization: {
+                                                priceFormatter: myPriceFormatter
+                                            }
+                                        });
+                                        logToFile('Price formatter applied successfully');
+                                    } catch (formatError) {
+                                        logToFile('Price formatter error: ' + formatError.message);
+                                    }
+                                    
                                     // Check if BaselineSeries constant is available in LightweightCharts namespace
                                     if (typeof LightweightCharts.BaselineSeries !== 'undefined') {
                                         logToFile('BaselineSeries constant found, creating baseline series');
@@ -285,8 +328,15 @@ struct TradingViewChartView: UIViewRepresentable {
                                             lineStyle: 0,
                                             priceFormat: {
                                                 type: 'price',
-                                                precision: 2,
-                                                minMove: 0.01,
+                                                precision: baselinePrice >= 1000 ? 0 : baselinePrice >= 100 ? 1 : baselinePrice >= 10 ? 2 : baselinePrice >= 1 ? 3 : baselinePrice >= 0.01 ? 4 : 6,
+                                                minMove: baselinePrice >= 1000 ? 1 : baselinePrice >= 100 ? 0.1 : baselinePrice >= 10 ? 0.01 : baselinePrice >= 1 ? 0.001 : baselinePrice >= 0.01 ? 0.0001 : 0.000001,
+                                                formatter: function(price) {
+                                                    const precision = baselinePrice >= 1000 ? 0 : baselinePrice >= 100 ? 1 : baselinePrice >= 10 ? 2 : baselinePrice >= 1 ? 3 : baselinePrice >= 0.01 ? 4 : 6;
+                                                    const fixed = price.toFixed(precision);
+                                                    const [whole, decimal] = fixed.split('.');
+                                                    const withCommas = whole.replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');
+                                                    return decimal ? withCommas + '.' + decimal : withCommas;
+                                                }
                                             },
                                         });
                                         logToFile('SUCCESS: TradingView v5.0 Baseline series created with start price: $' + baselinePrice.toFixed(2));
@@ -303,8 +353,15 @@ struct TradingViewChartView: UIViewRepresentable {
                                                 lineWidth: 3,
                                                 priceFormat: {
                                                     type: 'price',
-                                                    precision: 2,
-                                                    minMove: 0.01,
+                                                    precision: baselinePrice >= 1000 ? 0 : baselinePrice >= 100 ? 1 : baselinePrice >= 10 ? 2 : baselinePrice >= 1 ? 3 : baselinePrice >= 0.01 ? 4 : 6,
+                                                    minMove: baselinePrice >= 1000 ? 1 : baselinePrice >= 100 ? 0.1 : baselinePrice >= 10 ? 0.01 : baselinePrice >= 1 ? 0.001 : baselinePrice >= 0.01 ? 0.0001 : 0.000001,
+                                                    formatter: function(price) {
+                                                        const precision = baselinePrice >= 1000 ? 0 : baselinePrice >= 100 ? 1 : baselinePrice >= 10 ? 2 : baselinePrice >= 1 ? 3 : baselinePrice >= 0.01 ? 4 : 6;
+                                                        const fixed = price.toFixed(precision);
+                                                        const [whole, decimal] = fixed.split('.');
+                                                        const withCommas = whole.replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');
+                                                        return decimal ? withCommas + '.' + decimal : withCommas;
+                                                    }
                                                 },
                                             });
                                             logToFile('SUCCESS: TradingView v5.0 Area series created!');
@@ -323,8 +380,15 @@ struct TradingViewChartView: UIViewRepresentable {
                                                 lineWidth: 3,
                                                 priceFormat: {
                                                     type: 'price',
-                                                    precision: 2,
-                                                    minMove: 0.01,
+                                                    precision: baselinePrice >= 1000 ? 0 : baselinePrice >= 100 ? 1 : baselinePrice >= 10 ? 2 : baselinePrice >= 1 ? 3 : baselinePrice >= 0.01 ? 4 : 6,
+                                                    minMove: baselinePrice >= 1000 ? 1 : baselinePrice >= 100 ? 0.1 : baselinePrice >= 10 ? 0.01 : baselinePrice >= 1 ? 0.001 : baselinePrice >= 0.01 ? 0.0001 : 0.000001,
+                                                    formatter: function(price) {
+                                                        const precision = baselinePrice >= 1000 ? 0 : baselinePrice >= 100 ? 1 : baselinePrice >= 10 ? 2 : baselinePrice >= 1 ? 3 : baselinePrice >= 0.01 ? 4 : 6;
+                                                        const fixed = price.toFixed(precision);
+                                                        const [whole, decimal] = fixed.split('.');
+                                                        const withCommas = whole.replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');
+                                                        return decimal ? withCommas + '.' + decimal : withCommas;
+                                                    }
                                                 },
                                             });
                                             logToFile('SUCCESS: TradingView v5.0 Line series created as fallback!');
@@ -347,8 +411,15 @@ struct TradingViewChartView: UIViewRepresentable {
                                         lineWidth: 3,
                                         priceFormat: {
                                             type: 'price',
-                                            precision: 2,
-                                            minMove: 0.01,
+                                            precision: baselinePrice >= 1000 ? 0 : baselinePrice >= 100 ? 1 : baselinePrice >= 10 ? 2 : baselinePrice >= 1 ? 3 : baselinePrice >= 0.01 ? 4 : 6,
+                                            minMove: baselinePrice >= 1000 ? 1 : baselinePrice >= 100 ? 0.1 : baselinePrice >= 10 ? 0.01 : baselinePrice >= 1 ? 0.001 : baselinePrice >= 0.01 ? 0.0001 : 0.000001,
+                                            formatter: function(price) {
+                                                const precision = baselinePrice >= 1000 ? 0 : baselinePrice >= 100 ? 1 : baselinePrice >= 10 ? 2 : baselinePrice >= 1 ? 3 : baselinePrice >= 0.01 ? 4 : 6;
+                                                const fixed = price.toFixed(precision);
+                                                const [whole, decimal] = fixed.split('.');
+                                                const withCommas = whole.replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');
+                                                return decimal ? withCommas + '.' + decimal : withCommas;
+                                            }
                                         },
                                     });
                                     logToFile('SUCCESS: Area series created!');
@@ -475,8 +546,38 @@ struct TradingViewChartView: UIViewRepresentable {
                                     });
                                 }
                                 
-                                // Fit content with some padding
-                                chart.timeScale().fitContent();
+                                // Configure evenly spaced time intervals based on timeframe
+                                const timeframe = '\(timeframe)';
+                                if (dataToUse.length > 0) {
+                                    const firstTime = dataToUse[0].time;
+                                    const lastTime = dataToUse[dataToUse.length - 1].time;
+                                    
+                                    // Set visible range to show all data with padding
+                                    const padding = (lastTime - firstTime) * 0.05; // 5% padding on each side
+                                    chart.timeScale().setVisibleRange({
+                                        from: firstTime - padding,
+                                        to: lastTime + padding
+                                    });
+                                    
+                                    // Force more tick marks for 1h timeframe
+                                    if (timeframe === '1h') {
+                                        // Apply additional options to encourage more tick marks
+                                        chart.applyOptions({
+                                            timeScale: {
+                                                minBarSpacing: 0.5, // Allow bars to be closer together
+                                                rightOffset: 5,
+                                                barSpacing: 2,
+                                            }
+                                        });
+                                        logToFile('Applied 1h specific spacing options for more tick marks');
+                                    }
+                                    
+                                    logToFile('Set visible time range from ' + new Date(firstTime * 1000) + ' to ' + new Date(lastTime * 1000));
+                                } else {
+                                    chart.timeScale().fitContent();
+                                }
+                                
+                                // Price formatting now handled via localization.priceFormatter
                                 
                                 logToFile('Chart data and reference lines set successfully');
                             } catch (dataError) {
@@ -548,7 +649,7 @@ struct TradingViewChartView_Previews: PreviewProvider {
             ChartDataPoint(timestamp: 1641340800, price: 49100.0),
         ]
         
-        TradingViewChartView(data: sampleData, isPositive: true)
+        TradingViewChartView(data: sampleData, isPositive: true, timeframe: "24h")
             .frame(height: 300)
             .background(Color.black)
             .previewLayout(.sizeThatFits)
