@@ -1,21 +1,19 @@
-[package]
-name = "rust_ios_lib"
+[workspace]
+members = [
+    "crates/server",
+    "crates/ios_lib", 
+    "crates/shared"
+]
+resolver = "2"
+
+# Workspace-wide settings
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
+authors = ["CoinCrab Team"]
 
-[lib]
-name = "rust_ios_lib"
-crate-type = ["staticlib", "cdylib"]
-
-[[bin]]
-name = "crypto_server"
-path = "src/server.rs"
-
-[[bin]]
-name = "mqtt_test_client"
-path = "src/mqtt_test_client.rs"
-
-[dependencies]
+# Shared dependencies that can be inherited by workspace members
+[workspace.dependencies]
 libc = "0.2"
 actix-web = "4.4"
 reqwest = { version = "0.11", features = ["json"] }
@@ -30,5 +28,3 @@ chrono = { version = "0.4", features = ["serde"] }
 rumqttd = "0.18"
 rumqttc = "0.24"
 toml = "0.8"
-
-[target.'cfg(target_os = "ios")'.dependencies]

@@ -1,0 +1,24 @@
+[package]
+name = "rust_ios_lib"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "rust_ios_lib"
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+# Inherit workspace dependencies
+libc = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+log = { workspace = true }
+dotenv = { workspace = true }
+chrono = { workspace = true }
+rumqttc = { workspace = true }
+
+# iOS lib-specific dependencies
+shared = { path = "../shared" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
