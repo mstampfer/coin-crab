@@ -786,10 +786,33 @@ async fn setup_mqtt_request_handling(state: web::Data<AppState>) -> Result<(), S
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    env_logger::init();
-    
-    // Load .env file
+    // Load .env file first
     dotenv::from_filename(".env.server").ok();
+    
+    // Initialize configurable logging with rumqttd suppression
+    let log_level = std::env::var("LOG_LEVEL").unwrap_or_else(|_| "INFO".to_string());
+    
+    let mut builder = env_logger::Builder::from_default_env();
+    
+    // Set base log level from environment
+    let level_filter = match log_level.to_uppercase().as_str() {
+        "OFF" => log::LevelFilter::Off,
+        "ERROR" => log::LevelFilter::Error,
+        "WARN" => log::LevelFilter::Warn,
+        "INFO" => log::LevelFilter::Info,
+        "DEBUG" => log::LevelFilter::Debug,
+        "TRACE" => log::LevelFilter::Trace,
+        _ => log::LevelFilter::Info,
+    };
+    
+    builder.filter_level(level_filter);
+    
+    // Always suppress rumqttd logs regardless of main log level
+    builder.filter_module("rumqttd", log::LevelFilter::Off);
+    builder.filter_module("rumqttd::router", log::LevelFilter::Off);
+    builder.filter_module("rumqttd::router::routing", log::LevelFilter::Off);
+    
+    builder.init();
     
     let api_key = std::env::var("CMC_API_KEY")
         .unwrap_or_else(|_| {
