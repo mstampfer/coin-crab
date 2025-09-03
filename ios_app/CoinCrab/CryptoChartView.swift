@@ -290,26 +290,25 @@ struct TimeFrameSelectorView: View {
     @Binding var selectedTimeframe: CryptoChartView.TimeFrame
     
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(CryptoChartView.TimeFrame.allCases, id: \.self) { timeframe in
-                    Button(action: {
-                        selectedTimeframe = timeframe
-                    }) {
-                        Text(timeframe.rawValue)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(selectedTimeframe == timeframe ? .black : .gray)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 20)
-                                    .fill(selectedTimeframe == timeframe ? Color.white : Color.gray.opacity(0.1))
-                            )
-                    }
+        HStack(spacing: 6) {
+            ForEach(CryptoChartView.TimeFrame.allCases, id: \.self) { timeframe in
+                Button(action: {
+                    selectedTimeframe = timeframe
+                }) {
+                    Text(timeframe.rawValue)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(selectedTimeframe == timeframe ? .black : .gray)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .frame(minWidth: 40)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(selectedTimeframe == timeframe ? Color.white : Color.gray.opacity(0.1))
+                        )
                 }
             }
-            .padding(.horizontal, 16)
         }
+        .padding(.horizontal, 16)
         .padding(.vertical, 8)
     }
 }
