@@ -1,6 +1,6 @@
 # 🦀 Coin Crab
 
-A modern iOS cryptocurrency tracking app built with Rust and SwiftUI, featuring real-time price updates, animated price changes, and professional market data visualization.
+A professional iOS cryptocurrency tracking app built with Rust and SwiftUI, featuring **TradingView charts with volume analysis**, real-time price updates, and enterprise-grade market data visualization.
 
 <div align="center">
 
@@ -13,12 +13,20 @@ A modern iOS cryptocurrency tracking app built with Rust and SwiftUI, featuring 
 
 ## Features
 
+### ** NEW: Professional TradingView Charts**
+- **TradingView Lightweight Charts**: Enterprise-grade charting with v5.0 API
+- **Volume Histogram**: Trading volume displayed as color-coded bars (green/red based on price movement)
+- **Multiple Timeframes**: 1H, 24H, 7D, 30D, 90D, 1Y, All - all visible without scrolling
+- **Reference Lines**: Dashed lines showing start and end prices for timeframe context
+- **Smart Scaling**: Volume uses bottom 20% of chart with separate scale
+- **Interactive Charts**: Fullscreen mode with landscape orientation support
+
 ### **Modern iOS Interface**
 - **Dark Theme**: Professional cryptocurrency market aesthetic
-- **Real-time Data**: Live price updates every 30 seconds
+- **Real-time Data**: Live price updates via MQTT with configurable logging
 - **Animated Prices**: Color-coded price change animations (green ↑, red ↓)
 - **Market Overview**: Statistics cards for market cap, indices, and sentiment
-- **Tab Navigation**: Full app structure with Markets, Alpha, Search, Portfolio, Community
+- **Optimized UI**: Removed grey bars, smaller fullscreen icons, improved spacing
 
 ### **Real Cryptocurrency Icons**
 - Authentic crypto logos loaded from multiple reliable sources
@@ -32,20 +40,23 @@ A modern iOS cryptocurrency tracking app built with Rust and SwiftUI, featuring 
 - **Mini Charts**: Price trend visualizations for each coin
 - **Professional Layout**: Ranking, market caps, and percentage changes
 
-### **Secure Server Architecture**
-- MQTT-based real-time communication
-- Server-side CoinMarketCap API integration for security
-- No API keys stored on client devices
-- High-performance Rust MQTT broker with rumqttd
+### ** Rust Workspace Architecture**
+- **Separate Deployments**: Independent server and client builds
+- **Workspace Structure**: Organized into `server`, `ios_lib`, and `shared` crates
+- **Code Sharing**: Common data structures and utilities in shared crate
+- **MQTT Communication**: High-performance real-time updates with rumqttd
+- **Configurable Logging**: Environment-based logging with rumqttd suppression
+- **Security First**: API keys server-side only, no sensitive data on client
 
 ## Tech Stack
 
-- **Frontend**: SwiftUI, iOS 17+
-- **Client & Server**: **100% Rust** - Both MQTT client (iOS library) and server written in Rust
-- **Communication**: MQTT message broker for real-time updates
-- **APIs**: CoinMarketCap (server-side only), multiple icon providers
-- **Architecture**: Rust-to-Rust MQTT communication with Swift FFI bridge
-- **Build System**: Xcode + Cargo
+- **Frontend**: SwiftUI + TradingView Lightweight Charts v5.0, iOS 17+
+- **Backend**: **100% Rust Workspace** - Server, iOS library, and shared code
+- **Charts**: TradingView Lightweight Charts with volume histogram analysis
+- **Communication**: MQTT message broker for real-time updates (rumqttd)
+- **APIs**: CoinMarketCap with volume data (server-side only), multiple icon providers
+- **Architecture**: Rust workspace with separate deployable crates
+- **Build System**: Xcode + Cargo with workspace support
 
 ### Rust Dependencies
 
@@ -70,28 +81,39 @@ A modern iOS cryptocurrency tracking app built with Rust and SwiftUI, featuring 
 
 ## Project Structure
 
+### 🏗️ **Rust Workspace Architecture**
+
 ```
 coin-crab-app/
+├── Cargo.toml                  # Workspace manifest (resolver = "2")
+├── crates/                     # All Rust project crates
+│   ├── server/                 # Server crate (coin-crab-server)
+│   │   ├── src/main.rs         # Server entry point with MQTT broker
+│   │   ├── Cargo.toml          # Server dependencies
+│   │   ├── .env.server         # Server config (CMC API key)
+│   │   └── rumqttd.toml        # MQTT broker configuration
+│   ├── ios_lib/                # iOS library crate (rust_ios_lib)
+│   │   ├── src/lib.rs          # MQTT client for iOS FFI
+│   │   ├── Cargo.toml          # iOS dependencies
+│   │   ├── .env.client         # Client config (MQTT host)
+│   │   └── rust_ios_lib.h      # C header for Swift interop
+│   └── shared/                 # Shared crate for common code
+│       ├── src/lib.rs          # Data structures & utilities
+│       └── Cargo.toml          # Shared dependencies
 ├── ios_app/                    # iOS Xcode project
 │   ├── CoinCrab.xcodeproj/     # Xcode project file
-│   └── CoinCrab/               # iOS app source code
+│   └── CoinCrab/               # SwiftUI app source
 │       ├── CoinCrabApp.swift   # App entry point
-│       ├── ContentView.swift   # Main SwiftUI views
-│       ├── CoinCrab-Bridging-Header.h
+│       ├── ContentView.swift   # Main market view
+│       ├── CryptoChartView.swift     # Chart view with timeframes
+│       ├── TradingViewChartView.swift # TradingView integration
+│       ├── CoinCrab-Bridging-Header.h # Rust FFI bridge
 │       └── Assets.xcassets/    # App icons and assets
-├── src/                        # Rust backend source
-│   ├── lib.rs                  # MQTT client library for iOS
-│   ├── server.rs               # MQTT server with CMC API integration
-│   └── test_api.rs             # API testing utilities
-├── target/                     # Rust build artifacts
+├── target/                     # Rust build artifacts (workspace-wide)
 │   └── universal/release/      # iOS universal libraries
-├── .env.client                 # Client environment (MQTT broker host)
-├── .env.server                 # Server environment (API keys - git ignored)
 ├── .env.example                # Environment template
-├── rumqttd.toml                # MQTT broker configuration
-├── build_ios.sh               # iOS library build script
-├── rust_ios_lib.h             # C header for Swift interop
-└── Cargo.toml                 # Rust dependencies
+├── build_ios.sh               # iOS library build script (workspace-aware)
+└── README.md                  # This file
 ```
 
 ## Quick Start
@@ -111,15 +133,15 @@ coin-crab-app/
    cd coin-crab-app
    ```
 
-2. **Build the Rust library**
+2. **Build the iOS library from workspace**
    ```bash
    chmod +x build_ios.sh
    ./build_ios.sh
    ```
    This will:
    - Install iOS targets for Rust
-   - Build libraries for device and simulator
-   - Create universal binaries
+   - Build the `ios_lib` crate for device and simulator
+   - Create universal binaries with shared dependencies
 
 3. **Open the iOS project**
    ```bash
@@ -129,15 +151,16 @@ coin-crab-app/
 4. **Set up environment files**
    ```bash
    # Copy and configure server environment (with your API key)
-   cp .env.example .env.server
-   # Edit .env.server and add your CoinMarketCap API key
+   cp .env.example crates/server/.env.server
+   # Edit crates/server/.env.server and add your CoinMarketCap API key
    
-   # Client environment is already configured in .env.client
+   # Client environment is already configured in crates/ios_lib/.env.client
    ```
 
-5. **Start the MQTT server**
+5. **Start the MQTT server (workspace)**
    ```bash
-   cargo run --bin crypto_server
+   cargo build -p coin-crab-server --release
+   cargo run -p coin-crab-server
    ```
    This will start both the MQTT broker and the data publishing service.
 
@@ -152,21 +175,29 @@ coin-crab-app/
 
 The app uses separate environment files for security:
 
-**Client Configuration** (`.env.client` - safe to commit):
+**Client Configuration** (`crates/ios_lib/.env.client` - safe to commit):
 ```env
 # MQTT Broker Configuration
-# For iOS device testing, set this to your machine's IP address
+# For iOS device testing, set this to your machine's IP address  
 # For local development/simulator, use 127.0.0.1
 MQTT_BROKER_HOST=127.0.0.1
+
+# Logging Configuration
+LOG_LEVEL=ERROR
+ENABLE_DEBUG_LOGGING=false
 ```
 
-**Server Configuration** (`.env.server` - git ignored):
+**Server Configuration** (`crates/server/.env.server` - git ignored):
 ```env
 # CoinMarketCap API Configuration
 CMC_API_KEY=your_coinmarketcap_api_key_here
 
 # MQTT Broker Configuration
 MQTT_BROKER_HOST=127.0.0.1
+
+# Logging Configuration
+LOG_LEVEL=OFF                    # Suppress rumqttd logs
+ENABLE_DEBUG_LOGGING=false
 ```
 
 **Important Security Notes:**
@@ -233,26 +264,47 @@ The app uses multiple cryptocurrency data sources:
 
 ### Running Tests
 ```bash
-# Test Rust backend
+# Test entire workspace
 cargo test
 
-# Test API endpoints
-cargo run --bin test_api
+# Test specific crates
+cargo test -p shared
+cargo test -p coin-crab-server  
+cargo test -p rust_ios_lib
+
+# Check all crates
+cargo check
 ```
 
 ### Building for Release
 ```bash
-# Build optimized Rust library
-cargo build --release --target aarch64-apple-ios
-cargo build --release --target x86_64-apple-ios
-cargo build --release --target aarch64-apple-ios-sim
+# Build server independently
+cargo build -p coin-crab-server --release
 
-# Create universal library
+# Build iOS library for all targets
 ./build_ios.sh
+
+# Or build specific iOS targets
+cargo build -p rust_ios_lib --release --target aarch64-apple-ios
+cargo build -p rust_ios_lib --release --target x86_64-apple-ios  
+cargo build -p rust_ios_lib --release --target aarch64-apple-ios-sim
+```
+
+### Deployment Options
+```bash
+# Deploy server only
+cargo build -p coin-crab-server --release
+./target/release/coin-crab-server
+
+# Build iOS library only  
+cargo build -p rust_ios_lib --target aarch64-apple-ios-sim --release
+
+# Build everything
+cargo build --release --workspace
 ```
 
 ### Adding New Cryptocurrencies
-Update the symbol mappings in `ContentView.swift`:
+Update the symbol mappings in `ios_app/CoinCrab/ContentView.swift`:
 
 ```swift
 // Add to getCoinMarketCapId function
@@ -262,13 +314,33 @@ Update the symbol mappings in `ContentView.swift`:
 "NEWCOIN": Color.purple
 ```
 
+### Customizing Charts
+The TradingView charts can be customized in `ios_app/CoinCrab/TradingViewChartView.swift`:
+
+```swift
+// Modify chart colors
+let chartColor = isPositive ? "#00C851" : "#FF4444"  
+let fillColor = isPositive ? "rgba(0, 200, 81, 0.1)" : "rgba(255, 68, 68, 0.1)"
+
+// Adjust volume histogram positioning
+chart.priceScale('volume').applyOptions({
+    scaleMargins: {
+        top: 0.8,     // Volume uses bottom 20% of chart
+        bottom: 0,
+    },
+});
+```
+
 ## Performance
 
-- **Startup time**: < 2 seconds
-- **Price updates**: 30-second intervals
-- **Memory usage**: ~50MB typical
-- **Network**: Efficient API caching
-- **Animations**: 60 FPS smooth transitions
+- **Startup time**: < 2 seconds with workspace architecture
+- **Charts**: TradingView Lightweight Charts for 60 FPS rendering
+- **Volume data**: Real-time histogram updates from CMC API
+- **Price updates**: MQTT real-time streaming with configurable intervals
+- **Memory usage**: ~50MB typical (including chart engine)
+- **Network**: Efficient API caching with MQTT compression
+- **Build time**: Parallel crate builds with workspace optimization
+- **Animations**: 60 FPS smooth transitions across all timeframes
 
 ## Contributing
 
@@ -297,16 +369,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Issues & Support
 
-Found a bug or have a feature request? Please [open an issue](https://github.com/yourusername/coin-crab-app/issues).
-
-For questions and discussions, check out our [Discussions](https://github.com/yourusername/coin-crab-app/discussions) page.
+Found a bug or have a feature request? _Please_ [open an issue](https://github.com/mstampfer/coin-crab/issues).
 
 ---
 
 <div align="center">
 
-[Report Bug](https://github.com/yourusername/coin-crab-app/issues) •
-[Request Feature](https://github.com/yourusername/coin-crab-app/issues) •
+[Report Bug](https://github.com/mstampfer/coin-crab/issues) •
+[Request Feature](https://github.com/mstampfer/coin-crab/issues) •
 [Contribute](CONTRIBUTING.md)
 
 </div>
