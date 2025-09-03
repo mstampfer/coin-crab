@@ -58,14 +58,22 @@ jobs:
       
     - name: Build server for release
       run: |
-        rustup target add x86_64-unknown-linux-gnu
-        cargo build -p coin-crab-server --release --target x86_64-unknown-linux-gnu
+        # Install cross-compilation tools for ARM64
+        sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu musl-tools
+        rustup target add aarch64-unknown-linux-musl
+        
+        # Build for ARM64 with static linking
+        cargo build -p coin-crab-server --release --target aarch64-unknown-linux-musl
+        
+        # Debug: show binary info
+        file target/aarch64-unknown-linux-musl/release/coin-crab-server
+        ls -la target/aarch64-unknown-linux-musl/release/coin-crab-server
       
     - name: Upload server binary as artifact
       uses: actions/upload-artifact@v4
       with:
         name: coin-crab-server-binary
-        path: target/x86_64-unknown-linux-gnu/release/coin-crab-server
+        path: target/aarch64-unknown-linux-musl/release/coin-crab-server
         retention-days: 7
 
   deploy:
@@ -107,6 +115,11 @@ jobs:
       run: |
         ssh -i ~/.ssh/aws-freetier.pem ec2-user@100.26.107.175 << 'EOF'
           cd coin_crab_server
+          
+          # Debug: Check system architecture and binary format
+          echo "🔍 EC2 System Info:"
+          uname -m
+          file coin-crab-server
           
           # Make binary executable
           chmod +x coin-crab-server
