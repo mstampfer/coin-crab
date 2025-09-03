@@ -58,35 +58,30 @@ jobs:
       
     - name: Build server for release
       run: |
-        # Install cross-compilation tools for ARM64
-        sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu musl-tools musl-dev
+        # Install cross-compilation tools for ARM64 (use regular glibc target instead of musl)
+        sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
         
-        # Download and install musl cross-compilation toolchain for ARM64
-        wget https://more.musl.cc/10/x86_64-linux-musl/aarch64-linux-musl-cross.tgz
-        tar -xzf aarch64-linux-musl-cross.tgz
-        export PATH="$PWD/aarch64-linux-musl-cross/bin:$PATH"
+        # Set environment variables for cross-compilation with glibc
+        export CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc
+        export CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++
+        export AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar
+        export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
         
-        # Set environment variables for cross-compilation
-        export CC_aarch64_unknown_linux_musl=aarch64-linux-musl-gcc
-        export CXX_aarch64_unknown_linux_musl=aarch64-linux-musl-g++
-        export AR_aarch64_unknown_linux_musl=aarch64-linux-musl-ar
-        export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-musl-gcc
+        # Add Rust target for ARM64 with glibc
+        rustup target add aarch64-unknown-linux-gnu
         
-        # Add Rust target
-        rustup target add aarch64-unknown-linux-musl
-        
-        # Build for ARM64 with static linking
-        cargo build -p coin-crab-server --release --target aarch64-unknown-linux-musl
+        # Build for ARM64 
+        cargo build -p coin-crab-server --release --target aarch64-unknown-linux-gnu
         
         # Debug: show binary info
-        file target/aarch64-unknown-linux-musl/release/coin-crab-server
-        ls -la target/aarch64-unknown-linux-musl/release/coin-crab-server
+        file target/aarch64-unknown-linux-gnu/release/coin-crab-server
+        ls -la target/aarch64-unknown-linux-gnu/release/coin-crab-server
       
     - name: Upload server binary as artifact
       uses: actions/upload-artifact@v4
       with:
         name: coin-crab-server-binary
-        path: target/aarch64-unknown-linux-musl/release/coin-crab-server
+        path: target/aarch64-unknown-linux-gnu/release/coin-crab-server
         retention-days: 7
 
   deploy:
