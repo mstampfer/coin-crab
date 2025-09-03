@@ -1,0 +1,183 @@
+name: Deploy Server to AWS EC2
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'crates/server/**'
+      - 'crates/shared/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'crates/server/**'
+      - 'crates/shared/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+        
+    - name: Cache Rust dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+          
+    - name: Check workspace
+      run: cargo check --workspace
+      
+    - name: Run server tests
+      run: cargo test -p coin-crab-server --verbose
+      
+    - name: Run shared crate tests  
+      run: cargo test -p shared --verbose
+      
+    - name: Build server for release
+      run: cargo build -p coin-crab-server --release
+      
+    - name: Upload server binary as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: coin-crab-server-binary
+        path: target/release/coin-crab-server
+        retention-days: 7
+
+  deploy:
+    name: Deploy to AWS EC2
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Download server binary
+      uses: actions/download-artifact@v4
+      with:
+        name: coin-crab-server-binary
+        path: ./artifacts
+        
+    - name: Setup SSH key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.AWS_SSH_PRIVATE_KEY }}" > ~/.ssh/aws-freetier.pem
+        chmod 600 ~/.ssh/aws-freetier.pem
+        ssh-keyscan -H 100.26.107.175 >> ~/.ssh/known_hosts
+        
+    - name: Copy server files to EC2
+      run: |
+        # Create directory on EC2
+        ssh -i ~/.ssh/aws-freetier.pem ec2-user@100.26.107.175 "mkdir -p coin_crab_server"
+        
+        # Copy binary
+        scp -i ~/.ssh/aws-freetier.pem ./artifacts/coin-crab-server ec2-user@100.26.107.175:~/coin_crab_server/
+        
+        # Copy configuration files
+        scp -i ~/.ssh/aws-freetier.pem crates/server/.env.server ec2-user@100.26.107.175:~/coin_crab_server/ || echo "No .env.server file found - you'll need to create it manually on the server"
+        scp -i ~/.ssh/aws-freetier.pem crates/server/rumqttd.toml ec2-user@100.26.107.175:~/coin_crab_server/
+        
+    - name: Deploy and restart server
+      run: |
+        ssh -i ~/.ssh/aws-freetier.pem ec2-user@100.26.107.175 << 'EOF'
+          cd coin_crab_server
+          
+          # Make binary executable
+          chmod +x coin-crab-server
+          
+          # Stop existing server if running
+          pkill coin-crab-server || echo "No existing server process found"
+          
+          # Wait a moment for graceful shutdown
+          sleep 2
+          
+          # Start server in background with nohup
+          # Redirect output to log file
+          nohup ./coin-crab-server > server.log 2>&1 &
+          
+          # Save PID for future management
+          echo $! > server.pid
+          
+          # Wait a moment and check if server started
+          sleep 3
+          if ps -p $(cat server.pid) > /dev/null 2>&1; then
+            echo "✅ Server started successfully with PID $(cat server.pid)"
+            echo "📊 Server status:"
+            ps -p $(cat server.pid) -o pid,ppid,cmd
+          else
+            echo "❌ Server failed to start"
+            echo "📋 Last 20 lines of server log:"
+            tail -20 server.log
+            exit 1
+          fi
+        EOF
+        
+    - name: Verify deployment
+      run: |
+        ssh -i ~/.ssh/aws-freetier.pem ec2-user@100.26.107.175 << 'EOF'
+          cd coin_crab_server
+          echo "🔍 Checking server status..."
+          if [ -f server.pid ] && ps -p $(cat server.pid) > /dev/null 2>&1; then
+            echo "✅ Server is running with PID $(cat server.pid)"
+            
+            # Check if MQTT port is listening
+            if netstat -tuln | grep -q ":1883 "; then
+              echo "✅ MQTT broker is listening on port 1883"
+            else
+              echo "⚠️  MQTT broker may not be listening on port 1883"
+            fi
+            
+            # Show recent log entries
+            echo "📋 Recent server logs:"
+            tail -10 server.log
+          else
+            echo "❌ Server is not running"
+            echo "📋 Server log:"
+            cat server.log
+            exit 1
+          fi
+        EOF
+
+  notify:
+    name: Notify Deployment Status
+    runs-on: ubuntu-latest
+    needs: [test, deploy]
+    if: always()
+    
+    steps:
+    - name: Deployment Success
+      if: needs.deploy.result == 'success'
+      run: |
+        echo "🎉 Deployment successful!"
+        echo "🚀 Server deployed to AWS EC2: 100.26.107.175"
+        echo "📡 MQTT broker should be available at: 100.26.107.175:1883"
+        
+    - name: Deployment Failed
+      if: needs.deploy.result == 'failure'
+      run: |
+        echo "❌ Deployment failed!"
+        echo "🔍 Check the deploy job logs for details"
+        exit 1

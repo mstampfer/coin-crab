@@ -291,7 +291,12 @@ cargo build -p rust_ios_lib --release --target aarch64-apple-ios-sim
 ```
 
 ### Deployment Options
+
+#### Local Development
 ```bash
+# Use local MQTT broker for development
+cp .env.local crates/ios_lib/.env.client
+
 # Deploy server only
 cargo build -p coin-crab-server --release
 ./target/release/coin-crab-server
@@ -301,6 +306,37 @@ cargo build -p rust_ios_lib --target aarch64-apple-ios-sim --release
 
 # Build everything
 cargo build --release --workspace
+```
+
+#### Production Deployment (AWS EC2)
+The project includes automated CI/CD with GitHub Actions:
+
+```bash
+# Production deployment happens automatically on push to main
+git push origin main
+```
+
+**CI/CD Pipeline:**
+- ✅ **Automated Testing**: Runs all Rust server and shared crate tests
+- ✅ **Build Verification**: Ensures release build succeeds  
+- ✅ **AWS EC2 Deployment**: Deploys to production server (100.26.107.175)
+- ✅ **Health Checks**: Verifies MQTT broker is running on port 1883
+- ✅ **Zero Downtime**: Graceful server restart with process management
+
+**Server Management:**
+```bash
+# SSH into production server
+ssh -i ~/.ssh/aws-freetier.pem ec2-user@100.26.107.175
+
+# Check server status
+cd coin_crab_server
+cat server.pid  # Get process ID
+ps -p $(cat server.pid)  # Check if running
+tail -f server.log  # View live logs
+
+# Manual server control
+./coin-crab-server  # Start manually
+pkill coin-crab-server  # Stop server
 ```
 
 ### Adding New Cryptocurrencies
