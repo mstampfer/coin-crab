@@ -58,16 +58,16 @@ jobs:
       
     - name: Build server for release
       run: |
+        # Enable ARM64 architecture sources for cross-compilation
+        sudo dpkg --add-architecture arm64
+        sudo apt-get update
+        
         # Install cross-compilation tools for ARM64 including OpenSSL
-        sudo apt-get update && sudo apt-get install -y \
+        sudo apt-get install -y \
           gcc-aarch64-linux-gnu \
           libssl-dev:arm64 \
           pkg-config \
           dpkg-dev
-        
-        # Enable ARM64 architecture sources for cross-compilation
-        sudo dpkg --add-architecture arm64
-        sudo apt-get update
         
         # Set environment variables for cross-compilation with glibc
         export CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc
