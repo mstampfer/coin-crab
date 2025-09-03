@@ -15,6 +15,7 @@ on:
       - 'crates/shared/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
+  workflow_dispatch:  # Enable manual trigger from GitHub UI
 
 env:
   CARGO_TERM_COLOR: always

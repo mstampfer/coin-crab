@@ -51,7 +51,7 @@ To enable automatic deployment, add the following secrets to your GitHub reposit
 #### Manual Server Management
 ```bash
 # SSH into production server
-ssh -i ~/.ssh/aws-freetier.pem ec2-user@100.26.107.175
+ssh -i ~/.ssh/<private key file> ec2-user@<EC2 IP Address>
 
 # Server commands
 cd coin_crab_server
