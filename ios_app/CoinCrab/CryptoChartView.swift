@@ -184,7 +184,7 @@ struct CryptoChartView: View {
                     
                     if result.success {
                         self.historicalData = result.data.map { point in
-                            ChartDataPoint(timestamp: point.timestamp, price: point.price)
+                            ChartDataPoint(timestamp: point.timestamp, price: point.price, volume: point.volume)
                         }
                         print("📊 COINCRAB: Loaded \(result.data.count) data points for \(result.symbol ?? "Unknown")")
                     } else {
@@ -208,6 +208,7 @@ struct CryptoChartView: View {
 struct ChartDataPoint {
     let timestamp: TimeInterval
     let price: Double
+    let volume: Double?
 }
 
 struct HistoricalDataPoint: Codable {
@@ -633,7 +634,7 @@ struct FullscreenChartView: View {
                 DispatchQueue.main.async {
                     if result.success {
                         self.historicalData = result.data.map { point in
-                            ChartDataPoint(timestamp: point.timestamp, price: point.price)
+                            ChartDataPoint(timestamp: point.timestamp, price: point.price, volume: point.volume)
                         }
                         self.errorMessage = nil
                     } else {

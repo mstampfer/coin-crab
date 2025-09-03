@@ -74,11 +74,12 @@ struct TradingViewChartView: UIViewRepresentable {
     }
     
     private func generateHTMLContent() -> String {
-        let chartData = formatDataForTradingView()
+        let (priceData, volumeData) = formatDataForTradingView()
         let chartColor = isPositive ? "#00C851" : "#FF4444"
         let fillColor = isPositive ? "rgba(0, 200, 81, 0.1)" : "rgba(255, 68, 68, 0.1)"
         
-        print("📊 TradingView HTML: Generated chartData for JS: \(chartData)")
+        print("📊 TradingView HTML: Generated priceData for JS: \(priceData.prefix(100))...")
+        print("📊 TradingView HTML: Generated volumeData for JS: \(volumeData.prefix(100))...")
         
         return """
         <!DOCTYPE html>
@@ -298,14 +299,15 @@ struct TradingViewChartView: UIViewRepresentable {
                                     logToFile('Using TradingView v5.0 API with BaselineSeries constant');
                                     
                                     // Get start price for baseline - need to access it here first
-                                    const chartData = \(chartData);
+                                    const priceData = \(priceData);
+                                    const volumeData = \(volumeData);
                                     let baselinePrice = 108000; // Default baseline closer to BTC range
                                     
-                                    logToFile('Raw chartData type: ' + typeof chartData);
-                                    logToFile('Raw chartData: ' + JSON.stringify(chartData).substring(0, 200));
+                                    logToFile('Raw priceData type: ' + typeof priceData);
+                                    logToFile('Raw priceData: ' + JSON.stringify(priceData).substring(0, 200));
                                     
-                                    if (chartData && chartData.length > 0) {
-                                        const firstPoint = chartData[0];
+                                    if (priceData && priceData.length > 0) {
+                                        const firstPoint = priceData[0];
                                         logToFile('First data point: ' + JSON.stringify(firstPoint));
                                         
                                         // Try different property names
@@ -512,28 +514,37 @@ struct TradingViewChartView: UIViewRepresentable {
                         // Use real chart data with reference lines
                         if (areaSeries) {
                             try {
-                                const chartData = \(chartData);
-                                let dataToUse = chartData;
+                                const priceData = \(priceData);
+                                const volumeData = \(volumeData);
+                                let priceDataToUse = priceData;
+                                let volumeDataToUse = volumeData;
                                 
-                                if (!chartData || chartData.length === 0) {
+                                if (!priceData || priceData.length === 0) {
                                     // Fallback to test data if no real data
-                                    dataToUse = [
+                                    priceDataToUse = [
                                         { time: 1725148800, value: 58000 },
                                         { time: 1725152400, value: 58200 },
                                         { time: 1725156000, value: 58100 },
                                         { time: 1725159600, value: 58400 },
                                         { time: 1725163200, value: 58300 }
                                     ];
+                                    volumeDataToUse = [
+                                        { time: 1725148800, value: 1200000000, color: 'rgba(0, 150, 136, 0.8)' },
+                                        { time: 1725152400, value: 1300000000, color: 'rgba(0, 150, 136, 0.8)' },
+                                        { time: 1725156000, value: 900000000, color: 'rgba(255, 82, 82, 0.8)' },
+                                        { time: 1725159600, value: 1500000000, color: 'rgba(0, 150, 136, 0.8)' },
+                                        { time: 1725163200, value: 1100000000, color: 'rgba(255, 82, 82, 0.8)' }
+                                    ];
                                 }
                                 
                                 // Set data and verify baseline is working
-                                if (dataToUse.length > 0) {
-                                    const startPrice = dataToUse[0].value;
-                                    const endPrice = dataToUse[dataToUse.length - 1].value;
+                                if (priceDataToUse.length > 0) {
+                                    const startPrice = priceDataToUse[0].value;
+                                    const endPrice = priceDataToUse[priceDataToUse.length - 1].value;
                                     logToFile('Data range - Start: $' + startPrice.toFixed(2) + ', End: $' + endPrice.toFixed(2));
                                     
                                     // Find min/max for debugging
-                                    const prices = dataToUse.map(p => p.value);
+                                    const prices = priceDataToUse.map(p => p.value);
                                     const minPrice = Math.min(...prices);
                                     const maxPrice = Math.max(...prices);
                                     logToFile('Price range - Min: $' + minPrice.toFixed(2) + ', Max: $' + maxPrice.toFixed(2));
@@ -544,12 +555,67 @@ struct TradingViewChartView: UIViewRepresentable {
                                     logToFile('Points above start: ' + pointsAbove + ', below start: ' + pointsBelow);
                                 }
                                 
-                                areaSeries.setData(dataToUse);
+                                areaSeries.setData(priceDataToUse);
+                                
+                                // Create volume histogram series
+                                logToFile('Creating volume histogram series...');
+                                let volumeSeries;
+                                
+                                try {
+                                    // Add volume colors based on price movement
+                                    const volumeWithColors = volumeDataToUse.map((vol, index) => {
+                                        if (index === 0 || !priceDataToUse[index] || !priceDataToUse[index - 1]) {
+                                            return { ...vol, color: 'rgba(0, 150, 136, 0.3)' };
+                                        }
+                                        const priceUp = priceDataToUse[index].value > priceDataToUse[index - 1].value;
+                                        return {
+                                            ...vol,
+                                            color: priceUp ? 'rgba(0, 200, 81, 0.3)' : 'rgba(255, 68, 68, 0.3)'
+                                        };
+                                    });
+                                    
+                                    if (chart.addSeries && typeof chart.addSeries === 'function' && LightweightCharts.HistogramSeries) {
+                                        volumeSeries = chart.addSeries(LightweightCharts.HistogramSeries, {
+                                            priceFormat: {
+                                                type: 'volume',
+                                            },
+                                            priceScaleId: 'volume',
+                                            color: 'rgba(0, 150, 136, 0.3)',
+                                        });
+                                        logToFile('Volume series created using v5.0 API');
+                                    } else if (chart.addHistogramSeries && typeof chart.addHistogramSeries === 'function') {
+                                        volumeSeries = chart.addHistogramSeries({
+                                            priceFormat: {
+                                                type: 'volume',
+                                            },
+                                            priceScaleId: 'volume',
+                                            color: 'rgba(0, 150, 136, 0.3)',
+                                        });
+                                        logToFile('Volume series created using addHistogramSeries');
+                                    }
+                                    
+                                    if (volumeSeries) {
+                                        volumeSeries.setData(volumeWithColors);
+                                        logToFile('Volume data set successfully with ' + volumeWithColors.length + ' points');
+                                        
+                                        // Configure volume scale on the right
+                                        chart.priceScale('volume').applyOptions({
+                                            scaleMargins: {
+                                                top: 0.8, // Volume uses bottom 20% of chart
+                                                bottom: 0,
+                                            },
+                                        });
+                                    } else {
+                                        logToFile('WARNING: Could not create volume series');
+                                    }
+                                } catch (volError) {
+                                    logToFile('ERROR creating volume series: ' + volError.message);
+                                }
                                 
                                 // Add reference lines for start and end prices (without labels)
-                                if (dataToUse.length > 1) {
-                                    const startPrice = dataToUse[0].value;
-                                    const endPrice = dataToUse[dataToUse.length - 1].value;
+                                if (priceDataToUse.length > 1) {
+                                    const startPrice = priceDataToUse[0].value;
+                                    const endPrice = priceDataToUse[priceDataToUse.length - 1].value;
                                     
                                     // Add start price line (no title/label)
                                     const startPriceLine = areaSeries.createPriceLine({
@@ -576,9 +642,9 @@ struct TradingViewChartView: UIViewRepresentable {
                                 
                                 // Configure evenly spaced time intervals based on timeframe
                                 const timeframe = '\(timeframe)';
-                                if (dataToUse.length > 0) {
-                                    const firstTime = dataToUse[0].time;
-                                    const lastTime = dataToUse[dataToUse.length - 1].time;
+                                if (priceDataToUse.length > 0) {
+                                    const firstTime = priceDataToUse[0].time;
+                                    const lastTime = priceDataToUse[priceDataToUse.length - 1].time;
                                     
                                     // Set visible range to show all data spanning full width
                                     chart.timeScale().setVisibleRange({
@@ -635,32 +701,39 @@ struct TradingViewChartView: UIViewRepresentable {
         """
     }
     
-    private func formatDataForTradingView() -> String {
+    private func formatDataForTradingView() -> (String, String) {
         print("📊 TradingView: Formatting \(data.count) data points")
         if !data.isEmpty {
-            print("📊 TradingView: First point - timestamp: \(data[0].timestamp), price: \(data[0].price)")
-            print("📊 TradingView: Last point - timestamp: \(data.last!.timestamp), price: \(data.last!.price)")
+            print("📊 TradingView: First point - timestamp: \(data[0].timestamp), price: \(data[0].price), volume: \(data[0].volume ?? 0)")
+            print("📊 TradingView: Last point - timestamp: \(data.last!.timestamp), price: \(data.last!.price), volume: \(data.last!.volume ?? 0)")
         } else {
             print("📊 TradingView: WARNING - No data points available!")
-            // Return empty array if no data
-            return "[]"
+            // Return empty arrays if no data
+            return ("[]", "[]")
         }
         
         // Sort data by timestamp to ensure proper ordering
         let sortedData = data.sorted { $0.timestamp < $1.timestamp }
         
         // Use Unix timestamp format for TradingView (seconds since epoch)
-        let tradingViewData = sortedData.map { point in
+        let priceData = sortedData.map { point in
             return "{ time: \(Int(point.timestamp)), value: \(point.price) }"
         }.joined(separator: ", ")
         
-        let result = "[\(tradingViewData)]"
-        print("📊 TradingView: Generated data string length: \(result.count)")
-        print("📊 TradingView: Full data string: \(result)")
-        if !tradingViewData.isEmpty {
-            print("📊 TradingView: Sample data point: \(tradingViewData.prefix(100))")
+        let volumeData = sortedData.map { point in
+            let volumeValue = point.volume ?? 0.0
+            return "{ time: \(Int(point.timestamp)), value: \(volumeValue) }"
+        }.joined(separator: ", ")
+        
+        let priceResult = "[\(priceData)]"
+        let volumeResult = "[\(volumeData)]"
+        print("📊 TradingView: Generated price data string length: \(priceResult.count)")
+        print("📊 TradingView: Generated volume data string length: \(volumeResult.count)")
+        if !priceData.isEmpty {
+            print("📊 TradingView: Sample price point: \(priceData.prefix(100))")
+            print("📊 TradingView: Sample volume point: \(volumeData.prefix(100))")
         }
-        return result
+        return (priceResult, volumeResult)
     }
 }
 
@@ -668,11 +741,11 @@ struct TradingViewChartView: UIViewRepresentable {
 struct TradingViewChartView_Previews: PreviewProvider {
     static var previews: some View {
         let sampleData = [
-            ChartDataPoint(timestamp: 1640995200, price: 47000.0),
-            ChartDataPoint(timestamp: 1641081600, price: 47500.0),
-            ChartDataPoint(timestamp: 1641168000, price: 46800.0),
-            ChartDataPoint(timestamp: 1641254400, price: 48200.0),
-            ChartDataPoint(timestamp: 1641340800, price: 49100.0),
+            ChartDataPoint(timestamp: 1640995200, price: 47000.0, volume: 25000000000),
+            ChartDataPoint(timestamp: 1641081600, price: 47500.0, volume: 27000000000),
+            ChartDataPoint(timestamp: 1641168000, price: 46800.0, volume: 22000000000),
+            ChartDataPoint(timestamp: 1641254400, price: 48200.0, volume: 30000000000),
+            ChartDataPoint(timestamp: 1641340800, price: 49100.0, volume: 28000000000),
         ]
         
         TradingViewChartView(data: sampleData, isPositive: true, timeframe: "24h")
