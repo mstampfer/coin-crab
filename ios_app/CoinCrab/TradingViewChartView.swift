@@ -97,12 +97,21 @@ struct TradingViewChartView: UIViewRepresentable {
                     width: 100%;
                     height: 100vh;
                     background-color: transparent;
-                    padding-bottom: 25px;
                     box-sizing: border-box;
                 }
                 /* Smaller font for time axis labels to allow more tick marks */
                 .tv-lightweight-charts table tr td {
                     font-size: 10px !important;
+                }
+                /* Make fullscreen icon smaller */
+                .tv-lightweight-charts canvas + div > div:last-child {
+                    transform: scale(0.6) !important;
+                    transform-origin: bottom right !important;
+                }
+                /* Alternative selector for fullscreen button */
+                .tv-lightweight-charts div[style*="position: absolute"][style*="right: 8px"][style*="bottom: 8px"] {
+                    transform: scale(0.6) !important;
+                    transform-origin: bottom right !important;
                 }
             </style>
         </head>
@@ -545,12 +554,14 @@ struct TradingViewChartView: UIViewRepresentable {
                                     // Add start price line (no title/label)
                                     const startPriceLine = areaSeries.createPriceLine({
                                         price: startPrice,
-                                        color: 'rgba(255, 255, 255, 0.3)',
+                                        color: 'rgba(255, 255, 255, 0.5)',
                                         lineWidth: 1,
                                         lineStyle: 2, // Dashed line
                                         axisLabelVisible: true,
                                         title: '', // Remove label
                                     });
+                                    
+                                    logToFile('Added start price reference line at: $' + startPrice.toFixed(2));
                                     
                                     // Add end price line (no title/label)
                                     const endPriceLine = areaSeries.createPriceLine({
