@@ -57,13 +57,15 @@ jobs:
       run: cargo test -p shared --verbose
       
     - name: Build server for release
-      run: cargo build -p coin-crab-server --release
+      run: |
+        rustup target add x86_64-unknown-linux-gnu
+        cargo build -p coin-crab-server --release --target x86_64-unknown-linux-gnu
       
     - name: Upload server binary as artifact
       uses: actions/upload-artifact@v4
       with:
         name: coin-crab-server-binary
-        path: target/release/coin-crab-server
+        path: target/x86_64-unknown-linux-gnu/release/coin-crab-server
         retention-days: 7
 
   deploy:
