@@ -58,34 +58,22 @@ jobs:
       
     - name: Build server for release
       run: |
-        # Enable ARM64 architecture sources for cross-compilation
-        sudo dpkg --add-architecture arm64
-        sudo apt-get update
+        # Install cross-compilation tools for ARM64
+        sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
         
-        # Install cross-compilation tools for ARM64 including OpenSSL
-        sudo apt-get install -y \
-          gcc-aarch64-linux-gnu \
-          libssl-dev:arm64 \
-          pkg-config \
-          dpkg-dev
-        
-        # Set environment variables for cross-compilation with glibc
+        # Set environment variables for cross-compilation
         export CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc
         export CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++
         export AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar
         export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
         
-        # Set OpenSSL environment variables for cross-compilation
-        export PKG_CONFIG_ALLOW_CROSS=1
-        export PKG_CONFIG_PATH="/usr/lib/aarch64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH"
-        export OPENSSL_DIR=/usr
-        export OPENSSL_LIB_DIR=/usr/lib/aarch64-linux-gnu
-        export OPENSSL_INCLUDE_DIR=/usr/include/openssl
+        # Use rustls instead of OpenSSL to avoid cross-compilation issues
+        export CARGO_NET_GIT_FETCH_WITH_CLI=true
         
-        # Add Rust target for ARM64 with glibc
+        # Add Rust target for ARM64
         rustup target add aarch64-unknown-linux-gnu
         
-        # Build for ARM64 
+        # Build for ARM64 (using rustls instead of OpenSSL)
         cargo build -p coin-crab-server --release --target aarch64-unknown-linux-gnu
         
         # Debug: show binary info
