@@ -1,0 +1,73 @@
+use log::{info, warn};
+use std::path::Path;
+
+pub struct ServerConfig {
+    pub api_key: String,
+    pub log_level: String,
+    pub mqtt_broker_host: String,
+}
+
+impl ServerConfig {
+    pub fn load() -> Result<Self, String> {
+        // Load .env file first with debug information
+        let current_dir = std::env::current_dir()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|_| "unknown".to_string());
+        
+        println!("Server starting from directory: {}", current_dir);
+        
+        let env_file_path = Path::new(".env.server");
+        println!("Looking for .env.server at: {}", env_file_path.display());
+        println!(".env.server file exists: {}", env_file_path.exists());
+        
+        match dotenv::from_filename(".env.server") {
+            Ok(path) => println!("Successfully loaded .env.server from: {}", path.display()),
+            Err(e) => println!("Failed to load .env.server: {}", e),
+        }
+
+        let api_key = std::env::var("CMC_API_KEY")
+            .unwrap_or_else(|_| {
+                warn!("CMC_API_KEY environment variable not set, using placeholder");
+                "YOUR_API_KEY_HERE".to_string()
+            });
+
+        let log_level = std::env::var("LOG_LEVEL").unwrap_or_else(|_| "INFO".to_string());
+
+        let mqtt_broker_host = std::env::var("MQTT_BROKER_HOST").unwrap_or_else(|_| {
+            warn!("MQTT_BROKER_HOST not set in .env file, using localhost (127.0.0.1)");
+            "127.0.0.1".to_string()
+        });
+
+        Ok(ServerConfig {
+            api_key,
+            log_level,
+            mqtt_broker_host,
+        })
+    }
+
+    pub fn setup_logging(&self) {
+        let mut builder = env_logger::Builder::from_default_env();
+        
+        // Set base log level from environment
+        let level_filter = match self.log_level.to_uppercase().as_str() {
+            "OFF" => log::LevelFilter::Off,
+            "ERROR" => log::LevelFilter::Error,
+            "WARN" => log::LevelFilter::Warn,
+            "INFO" => log::LevelFilter::Info,
+            "DEBUG" => log::LevelFilter::Debug,
+            "TRACE" => log::LevelFilter::Trace,
+            _ => log::LevelFilter::Info,
+        };
+        
+        builder.filter_level(level_filter);
+        
+        // Always suppress rumqttd logs regardless of main log level
+        builder.filter_module("rumqttd", log::LevelFilter::Off);
+        builder.filter_module("rumqttd::router", log::LevelFilter::Off);
+        builder.filter_module("rumqttd::router::routing", log::LevelFilter::Off);
+        
+        builder.init();
+        
+        info!("Logging initialized with level: {}", self.log_level);
+    }
+}
