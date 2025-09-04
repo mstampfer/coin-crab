@@ -171,7 +171,7 @@ impl MQTTClient {
                 loop {
                     match eventloop.poll().await {
                         Ok(Event::Incoming(Packet::ConnAck(_))) => {
-                            debug_log("🎉 MQTT: *** CONNECTION SUCCESSFUL *** Connected to broker!");
+                            debug_log("MQTT: *** CONNECTION SUCCESSFUL *** Connected to broker!");
                             info!("MQTT: Connected to broker");
                             *is_connected_clone.lock().unwrap() = true;
                             *connection_attempts_clone.lock().unwrap() = 0; // Reset retry counter on successful connection
@@ -194,69 +194,69 @@ impl MQTTClient {
                         Ok(Event::Incoming(Packet::Publish(publish))) => {
                             let topic = &publish.topic;
                             let payload = String::from_utf8_lossy(&publish.payload);
-                            debug_log(&format!("🔥 MQTT: *** MESSAGE RECEIVED *** Topic: {}, Size: {} bytes", topic, payload.len()));
-                            debug_log(&format!("🔥 MQTT: First 300 chars: {}", &payload[..payload.len().min(300)]));
+                            debug_log(&format!("MQTT: *** MESSAGE RECEIVED *** Topic: {}, Size: {} bytes", topic, payload.len()));
+                            debug_log(&format!("MQTT: First 300 chars: {}", &payload[..payload.len().min(300)]));
                             
                             if topic == "crypto/prices/latest" {
                                 // Handle latest prices update
-                                debug_log("🔥 MQTT: Processing crypto/prices/latest payload...");
+                                debug_log("MQTT: Processing crypto/prices/latest payload...");
                                 match serde_json::from_str::<Vec<CryptoCurrency>>(&payload) {
                                     Ok(crypto_data) => {
-                                        debug_log(&format!("🎉 MQTT: *** SUCCESS *** Parsed {} cryptocurrencies from latest prices", crypto_data.len()));
+                                        debug_log(&format!("MQTT: *** SUCCESS *** Parsed {} cryptocurrencies from latest prices", crypto_data.len()));
                                         if !crypto_data.is_empty() {
-                                            debug_log(&format!("🎉 MQTT: Sample crypto: {} ({}) - Price: ${:.2}", 
+                                            debug_log(&format!("MQTT: Sample crypto: {} ({}) - Price: ${:.2}", 
                                                 crypto_data[0].name, 
                                                 crypto_data[0].symbol,
                                                 crypto_data[0].quote.usd.price
                                             ));
                                         }
                                         *latest_prices_clone.lock().unwrap() = Some(crypto_data.clone());
-                                        debug_log(&format!("🎉 MQTT: *** CACHED {} CRYPTOCURRENCIES ***", crypto_data.len()));
+                                        debug_log(&format!("MQTT: *** CACHED {} CRYPTOCURRENCIES ***", crypto_data.len()));
                                         info!("MQTT: Updated latest prices from broker");
                                     }
                                     Err(e) => {
-                                        debug_log(&format!("❌ MQTT: Failed to parse crypto/prices/latest - Error: {}", e));
-                                        debug_log(&format!("❌ MQTT: Full payload (first 1000 chars): {}", &payload[..payload.len().min(1000)]));
+                                        debug_log(&format!("MQTT: Failed to parse crypto/prices/latest - Error: {}", e));
+                                        debug_log(&format!("MQTT: Full payload (first 1000 chars): {}", &payload[..payload.len().min(1000)]));
                                     }
                                 }
                             } else if topic.starts_with("crypto/historical/") {
                                 // Handle historical data: crypto/historical/BTC/24h
-                                debug_log(&format!("🔥 MQTT: Processing historical data for topic: {}", topic));
+                                debug_log(&format!("MQTT: Processing historical data for topic: {}", topic));
                                 match serde_json::from_str::<HistoricalDataResult>(&payload) {
                                     Ok(hist_data) => {
-                                        debug_log(&format!("🎉 MQTT: *** SUCCESS *** Parsed {} historical data points for {}", hist_data.data.len(), topic));
+                                        debug_log(&format!("MQTT: *** SUCCESS *** Parsed {} historical data points for {}", hist_data.data.len(), topic));
                                         let mut hist_map = historical_data_clone.lock().unwrap();
                                         hist_map.insert(topic.to_string(), hist_data);
-                                        debug_log(&format!("🎉 MQTT: *** CACHED HISTORICAL DATA *** for topic: {}", topic));
+                                        debug_log(&format!("MQTT: *** CACHED HISTORICAL DATA *** for topic: {}", topic));
                                         info!("MQTT: Updated historical data for topic: {}", topic);
                                     }
                                     Err(e) => {
-                                        debug_log(&format!("❌ MQTT: Failed to parse historical data for topic {} - Error: {}", topic, e));
-                                        debug_log(&format!("❌ MQTT: Historical payload (first 800 chars): {}", &payload[..payload.len().min(800)]));
+                                        debug_log(&format!("MQTT: Failed to parse historical data for topic {} - Error: {}", topic, e));
+                                        debug_log(&format!("MQTT: Historical payload (first 800 chars): {}", &payload[..payload.len().min(800)]));
                                     }
                                 }
                             } else if topic.starts_with("crypto/prices/") {
                                 // Handle individual crypto price updates
-                                debug_log(&format!("🔥 MQTT: Processing individual crypto price for topic: {}", topic));
+                                debug_log(&format!("MQTT: Processing individual crypto price for topic: {}", topic));
                                 match serde_json::from_str::<CryptoCurrency>(&payload) {
                                     Ok(crypto_data) => {
-                                        debug_log(&format!("🎉 MQTT: *** SUCCESS *** Individual crypto: {} ({}) - Price: ${:.2}", 
+                                        debug_log(&format!("MQTT: *** SUCCESS *** Individual crypto: {} ({}) - Price: ${:.2}", 
                                             crypto_data.name, 
                                             crypto_data.symbol,
                                             crypto_data.quote.usd.price
                                         ));
                                     }
                                     Err(e) => {
-                                        debug_log(&format!("❌ MQTT: Failed to parse individual crypto for topic {} - Error: {}", topic, e));
-                                        debug_log(&format!("❌ MQTT: Individual crypto payload: {}", &payload[..payload.len().min(500)]));
+                                        debug_log(&format!("MQTT: Failed to parse individual crypto for topic {} - Error: {}", topic, e));
+                                        debug_log(&format!("MQTT: Individual crypto payload: {}", &payload[..payload.len().min(500)]));
                                     }
                                 }
                             } else {
-                                debug_log(&format!("🔥 MQTT: *** UNHANDLED TOPIC *** {}, payload: {}", topic, &payload[..payload.len().min(200)]));
+                                debug_log(&format!("MQTT: *** UNHANDLED TOPIC *** {}, payload: {}", topic, &payload[..payload.len().min(200)]));
                             }
                         }
                         Ok(Event::Incoming(Packet::Disconnect)) => {
-                            debug_log("🔥 MQTT: *** DISCONNECT RECEIVED *** Broker initiated disconnect");
+                            debug_log("MQTT: *** DISCONNECT RECEIVED *** Broker initiated disconnect");
                             warn!("MQTT: Disconnected from broker");
                             *is_connected_clone.lock().unwrap() = false;
                         }
