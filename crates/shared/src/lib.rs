@@ -45,22 +45,36 @@ pub struct HistoricalDataResult {
 
 // Utility functions that can be shared between crates
 pub fn debug_log(message: &str) {
+    // ALWAYS log to console for debugging
+    println!("[DEBUG] {}", message);
+    eprintln!("[DEBUG-CONSOLE] {}", message);
+    
     // Check environment variable for debug logging
     let enable_debug = std::env::var("ENABLE_DEBUG_LOGGING").unwrap_or_else(|_| "false".to_string());
+    eprintln!("[ENV-CHECK] ENABLE_DEBUG_LOGGING = '{}'", enable_debug);
     
-    if enable_debug.to_lowercase() == "true" {
-        println!("[DEBUG] {}", message);
-        
-        // Also write to a debug file if possible
-        if let Ok(mut file) = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open("debug.log")
-        {
-            use std::io::Write;
-            let timestamp = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
-            writeln!(file, "[{}] {}", timestamp, message).ok();
-        }
+    // Always try to write to file for debugging
+    let log_path = if cfg!(target_os = "ios") {
+        // Try to get iOS Documents directory
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        let path = format!("{}/Documents/debug.log", home);
+        eprintln!("[FILE-PATH] Trying to write to: {}", path);
+        path
+    } else {
+        "debug.log".to_string()
+    };
+    
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+    {
+        use std::io::Write;
+        let timestamp = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
+        writeln!(file, "[{}] {}", timestamp, message).ok();
+        eprintln!("[FILE-SUCCESS] Wrote to debug log file");
+    } else {
+        eprintln!("[FILE-FAILED] Could not write to debug log at: {}", log_path);
     }
 }
 

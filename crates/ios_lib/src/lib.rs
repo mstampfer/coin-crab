@@ -58,20 +58,61 @@ pub struct MQTTClient {
 
 impl MQTTClient {
     pub fn new() -> Result<Self, String> {
+        // Initialize logging first
+        shared::init_logging();
         debug_log("MQTT: Creating new MQTTClient...");
         let rt = Runtime::new().map_err(|e| format!("Failed to create runtime: {}", e))?;
         debug_log("MQTT: Runtime created successfully");
         
-        // Load .env file and get MQTT broker host
-        // First try to load .env.client file, but don't fail if it doesn't exist
-        if let Err(_) = dotenv::from_filename(".env.client") {
-            debug_log("MQTT: .env.client file not found, using environment variables");
+        // Set debug logging environment variables first
+        std::env::set_var("ENABLE_DEBUG_LOGGING", "true");
+        std::env::set_var("LOG_LEVEL", "DEBUG");
+        
+        // Load .env file from iOS bundle resources
+        debug_log("MQTT: Attempting to load .env.client from iOS bundle...");
+        
+        // Try to find the .env.client file in the app bundle
+        let env_loaded = if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(bundle_dir) = exe_path.parent() {
+                let env_file_path = bundle_dir.join(".env.client");
+                debug_log(&format!("MQTT: Trying bundle path: {}", env_file_path.display()));
+                
+                if env_file_path.exists() {
+                    debug_log("MQTT: .env.client file found in bundle");
+                    if let Ok(_) = dotenv::from_path(&env_file_path) {
+                        debug_log("MQTT: .env.client loaded from app bundle successfully");
+                        true
+                    } else {
+                        debug_log("MQTT: Failed to load .env.client from bundle");
+                        false
+                    }
+                } else {
+                    debug_log("MQTT: .env.client file not found in bundle directory");
+                    false
+                }
+            } else {
+                debug_log("MQTT: Could not get bundle directory from executable path");
+                false
+            }
+        } else {
+            debug_log("MQTT: Could not get current executable path");
+            // Fallback: try current directory
+            if let Ok(_) = dotenv::from_filename(".env.client") {
+                debug_log("MQTT: .env.client loaded from current directory");
+                true
+            } else {
+                debug_log("MQTT: .env.client not found in current directory either");
+                false
+            }
+        };
+        
+        if !env_loaded {
+            debug_log("MQTT: No .env.client file found, using environment variables or defaults");
         }
         
         let broker_host = std::env::var("MQTT_BROKER_HOST").unwrap_or_else(|_| {
-            debug_log("MQTT: MQTT_BROKER_HOST not set in .env file, using localhost (127.0.0.1)");
-            debug_log("MQTT: For iOS device testing, update MQTT_BROKER_HOST in .env file to your machine's IP address");
-            "127.0.0.1".to_string()
+            debug_log("MQTT: MQTT_BROKER_HOST not set, using AWS EC2 default");
+            "100.26.107.175".to_string() // Default to AWS EC2 instead of localhost
         });
         debug_log(&format!("MQTT: Connecting to broker at {}:1883", broker_host));
         let mut mqttoptions = MqttOptions::new("rust-ios-client", &broker_host, 1883);
