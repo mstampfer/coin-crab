@@ -81,7 +81,7 @@ A professional iOS cryptocurrency tracking app built with Rust and SwiftUI, feat
 
 ## Project Structure
 
-### 🏗️ **Rust Workspace Architecture**
+### **Rust Workspace Architecture**
 
 ```
 coin-crab-app/
