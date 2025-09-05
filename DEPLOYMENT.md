@@ -27,8 +27,7 @@ To enable automatic deployment, add the following secrets to your GitHub reposit
   ```env
   CMC_API_KEY=your_coinmarketcap_api_key_here
   MQTT_BROKER_HOST=0.0.0.0
-  LOG_LEVEL=ERROR
-  ENABLE_DEBUG_LOGGING=false
+  LOG_LEVEL=ERROR  # Options: OFF, ERROR, WARN, INFO, DEBUG, TRACE
   ```
 
 #### Local Development

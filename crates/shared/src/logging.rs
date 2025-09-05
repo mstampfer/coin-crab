@@ -7,9 +7,9 @@ pub fn debug_log(message: &str) {
     println!("[DEBUG] {}", message);
     eprintln!("[DEBUG-CONSOLE] {}", message);
     
-    // Check environment variable for debug logging
-    let enable_debug = std::env::var("ENABLE_DEBUG_LOGGING").unwrap_or_else(|_| "false".to_string());
-    eprintln!("[ENV-CHECK] ENABLE_DEBUG_LOGGING = '{}'", enable_debug);
+    // Check environment variable for logging level
+    let log_level = std::env::var("LOG_LEVEL").unwrap_or_else(|_| "INFO".to_string());
+    eprintln!("[ENV-CHECK] LOG_LEVEL = '{}'", log_level);
     
     // Always try to write to file for debugging
     let log_path = if cfg!(target_os = "ios") {

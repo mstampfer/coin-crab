@@ -140,7 +140,6 @@ impl Clone for Config {
         Config {
             broker_host: self.broker_host.clone(),
             broker_port: self.broker_port,
-            enable_debug_logging: self.enable_debug_logging,
             log_level: self.log_level.clone(),
         }
     }

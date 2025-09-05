@@ -4,7 +4,6 @@ use std::path::Path;
 pub struct ServerConfig {
     pub api_key: String,
     pub log_level: String,
-    pub mqtt_broker_host: String,
 }
 
 impl ServerConfig {
@@ -33,15 +32,9 @@ impl ServerConfig {
 
         let log_level = std::env::var("LOG_LEVEL").unwrap_or_else(|_| "INFO".to_string());
 
-        let mqtt_broker_host = std::env::var("MQTT_BROKER_HOST").unwrap_or_else(|_| {
-            warn!("MQTT_BROKER_HOST not set in .env file, using localhost (127.0.0.1)");
-            "127.0.0.1".to_string()
-        });
-
         Ok(ServerConfig {
             api_key,
             log_level,
-            mqtt_broker_host,
         })
     }
 
