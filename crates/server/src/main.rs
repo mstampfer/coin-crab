@@ -92,7 +92,7 @@ async fn main() -> std::io::Result<()> {
     });
     
     info!("Starting crypto market data server on http://127.0.0.1:8080");
-    info!("MQTT broker listening on 0.0.0.0:1883");
+    info!("MQTT broker listening on {}:{}", config.mqtt_broker_host, config.mqtt_broker_port);
     info!("MQTT broker console on 127.0.0.1:3030");
     info!("Ready to accept connections...");
     

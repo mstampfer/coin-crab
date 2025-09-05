@@ -1,15 +1,15 @@
-name: Deploy Server to AWS EC2
+name: Deploy Server to AWS EC2 (UAT)
 
 on:
   push:
-    branches: [ main ]
+    branches: [ uat ]
     paths:
       - 'crates/server/**'
       - 'crates/shared/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
   pull_request:
-    branches: [ main ]
+    branches: [ uat ]
     paths:
       - 'crates/server/**'
       - 'crates/shared/**'
@@ -91,7 +91,7 @@ jobs:
     name: Deploy to AWS EC2
     runs-on: ubuntu-latest
     needs: test
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: github.ref == 'refs/heads/uat' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     
     steps:
     - name: Checkout code
@@ -112,36 +112,36 @@ jobs:
         
     - name: Copy server files to EC2
       run: |
-        # Create directory on EC2
-        ssh -i ~/.ssh/aws-freetier.pem ec2-user@100.26.107.175 "mkdir -p coin_crab_server"
+        # Create UAT directory on EC2
+        ssh -i ~/.ssh/aws-freetier.pem ec2-user@100.26.107.175 "mkdir -p coin_crab_server/uat"
         
-        # Copy binary
-        scp -i ~/.ssh/aws-freetier.pem ./artifacts/coin-crab-server ec2-user@100.26.107.175:~/coin_crab_server/
+        # Copy binary to UAT directory
+        scp -i ~/.ssh/aws-freetier.pem ./artifacts/coin-crab-server ec2-user@100.26.107.175:~/coin_crab_server/uat/
         
-        # Copy configuration files
-        scp -i ~/.ssh/aws-freetier.pem crates/server/.env.server ec2-user@100.26.107.175:~/coin_crab_server/ || echo "No .env.server file found - you'll need to create it manually on the server"
-        scp -i ~/.ssh/aws-freetier.pem crates/server/rumqttd.toml ec2-user@100.26.107.175:~/coin_crab_server/
+        # Copy configuration files to UAT directory
+        scp -i ~/.ssh/aws-freetier.pem crates/server/.env.server ec2-user@100.26.107.175:~/coin_crab_server/uat/ || echo "No .env.server file found - you'll need to create it manually on the server"
+        scp -i ~/.ssh/aws-freetier.pem crates/server/rumqttd.toml ec2-user@100.26.107.175:~/coin_crab_server/uat/
         
-    - name: Deploy and restart server
+    - name: Deploy and restart UAT server
       run: |
         ssh -i ~/.ssh/aws-freetier.pem ec2-user@100.26.107.175 << 'EOF'
-          cd coin_crab_server
+          cd coin_crab_server/uat
           
           # Debug: Check system architecture and binary format
-          echo "🔍 EC2 System Info:"
+          echo "🔍 EC2 System Info (UAT):"
           uname -m
           file coin-crab-server
           
           # Make binary executable
           chmod +x coin-crab-server
           
-          # Stop existing server if running
-          pkill coin-crab-server || echo "No existing server process found"
+          # Stop existing UAT server if running (look for processes in uat directory)
+          pkill -f "coin_crab_server/uat/coin-crab-server" || echo "No existing UAT server process found"
           
           # Wait a moment for graceful shutdown
           sleep 2
           
-          # Start server in background with nohup
+          # Start UAT server in background with nohup
           # Redirect output to log file
           nohup ./coin-crab-server > server.log 2>&1 &
           
@@ -151,38 +151,38 @@ jobs:
           # Wait a moment and check if server started
           sleep 3
           if ps -p $(cat server.pid) > /dev/null 2>&1; then
-            echo "✅ Server started successfully with PID $(cat server.pid)"
-            echo "📊 Server status:"
+            echo "UAT server started successfully with PID $(cat server.pid)"
+            echo "UAT server status:"
             ps -p $(cat server.pid) -o pid,ppid,cmd
           else
-            echo "❌ Server failed to start"
-            echo "📋 Last 20 lines of server log:"
+            echo "UAT server failed to start"
+            echo "Last 20 lines of UAT server log:"
             tail -20 server.log
             exit 1
           fi
         EOF
         
-    - name: Verify deployment
+    - name: Verify UAT deployment
       run: |
         ssh -i ~/.ssh/aws-freetier.pem ec2-user@100.26.107.175 << 'EOF'
-          cd coin_crab_server
-          echo "🔍 Checking server status..."
+          cd coin_crab_server/uat
+          echo "🔍 Checking UAT server status..."
           if [ -f server.pid ] && ps -p $(cat server.pid) > /dev/null 2>&1; then
-            echo "✅ Server is running with PID $(cat server.pid)"
+            echo "UAT server is running with PID $(cat server.pid)"
             
-            # Check if MQTT port is listening
-            if netstat -tuln | grep -q ":1883 "; then
-              echo "✅ MQTT broker is listening on port 1883"
+            # Check if MQTT port is listening (UAT uses port 1882)
+            if netstat -tuln | grep -q ":1882 "; then
+              echo "UAT MQTT broker is listening on port 1882"
             else
-              echo "⚠️  MQTT broker may not be listening on port 1883"
+              echo "UAT MQTT broker may not be listening on port 1882"
             fi
             
             # Show recent log entries
-            echo "📋 Recent server logs:"
+            echo "Recent UAT server logs:"
             tail -10 server.log
           else
-            echo "❌ Server is not running"
-            echo "📋 Server log:"
+            echo "UAT server is not running"
+            echo "UAT server log:"
             cat server.log
             exit 1
           fi
@@ -195,16 +195,16 @@ jobs:
     if: always()
     
     steps:
-    - name: Deployment Success
+    - name: UAT Deployment Success
       if: needs.deploy.result == 'success'
       run: |
-        echo "🎉 Deployment successful!"
-        echo "🚀 Server deployed to AWS EC2: 100.26.107.175"
-        echo "📡 MQTT broker should be available at: 100.26.107.175:1883"
+        echo "UAT deployment successful!"
+        echo "UAT server deployed to AWS EC2: 100.26.107.175"
+        echo "UAT MQTT broker should be available at: 100.26.107.175:1882"
         
-    - name: Deployment Failed
+    - name: UAT Deployment Failed
       if: needs.deploy.result == 'failure'
       run: |
-        echo "❌ Deployment failed!"
-        echo "🔍 Check the deploy job logs for details"
+        echo "UAT deployment failed!"
+        echo "Check the deploy job logs for details"
         exit 1

@@ -4,6 +4,8 @@ use std::path::Path;
 pub struct ServerConfig {
     pub api_key: String,
     pub log_level: String,
+    pub mqtt_broker_host: String,
+    pub mqtt_broker_port: u16,
 }
 
 impl ServerConfig {
@@ -31,10 +33,24 @@ impl ServerConfig {
             });
 
         let log_level = std::env::var("LOG_LEVEL").unwrap_or_else(|_| "INFO".to_string());
+        
+        let mqtt_broker_host = std::env::var("MQTT_BROKER_HOST").unwrap_or_else(|_| {
+            warn!("MQTT_BROKER_HOST not set in .env file, using localhost (0.0.0.0)");
+            "0.0.0.0".to_string()
+        });
+        
+        let mqtt_broker_port = std::env::var("MQTT_BROKER_PORT")
+            .and_then(|s| s.parse().map_err(|_| std::env::VarError::NotPresent))
+            .unwrap_or_else(|_| {
+                warn!("MQTT_BROKER_PORT not set in .env file, using default (1883)");
+                1883
+            });
 
         Ok(ServerConfig {
             api_key,
             log_level,
+            mqtt_broker_host,
+            mqtt_broker_port,
         })
     }
 

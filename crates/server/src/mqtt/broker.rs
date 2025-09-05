@@ -12,7 +12,14 @@ pub async fn setup_mqtt_broker() -> Result<Arc<AsyncClient>, String> {
         "127.0.0.1".to_string()
     });
     
-    info!("Starting embedded MQTT broker on {}:1883", broker_host);
+    let broker_port = std::env::var("MQTT_BROKER_PORT")
+        .and_then(|s| s.parse().map_err(|_| std::env::VarError::NotPresent))
+        .unwrap_or_else(|_| {
+            warn!("MQTT_BROKER_PORT not set in .env file, using default (1883)");
+            1883
+        });
+    
+    info!("Starting embedded MQTT broker on {}:{}", broker_host, broker_port);
     
     // Load configuration from file
     let config_path = "rumqttd.toml";
@@ -39,7 +46,7 @@ pub async fn setup_mqtt_broker() -> Result<Arc<AsyncClient>, String> {
     tokio::time::sleep(Duration::from_secs(3)).await;
     
     // Create MQTT client for publishing
-    let mut mqttoptions = MqttOptions::new("crypto-server-publisher", &broker_host, 1883);
+    let mut mqttoptions = MqttOptions::new("crypto-server-publisher", &broker_host, broker_port);
     mqttoptions.set_keep_alive(Duration::from_secs(30));
     mqttoptions.set_clean_session(true);
     mqttoptions.set_max_packet_size(102400, 102400); // Match broker config
