@@ -6,22 +6,10 @@ use std::time::Duration;
 use std::sync::Arc;
 use log::{info, warn, error, debug};
 
-pub async fn setup_mqtt_broker() -> Result<Arc<AsyncClient>, String> {
-    let broker_host = std::env::var("MQTT_BROKER_HOST").unwrap_or_else(|_| {
-        warn!("MQTT_BROKER_HOST not set in .env file, using localhost (127.0.0.1)");
-        "127.0.0.1".to_string()
-    });
-    
-    let broker_port = std::env::var("MQTT_BROKER_PORT")
-        .and_then(|s| s.parse().map_err(|_| std::env::VarError::NotPresent))
-        .unwrap_or_else(|_| {
-            warn!("MQTT_BROKER_PORT not set in .env file, using default (1883)");
-            1883
-        });
-    
+pub async fn setup_mqtt_broker(broker_host: &str, broker_port: u16) -> Result<Arc<AsyncClient>, String> {
     info!("Starting embedded MQTT broker on {}:{}", broker_host, broker_port);
     
-    // Load configuration from file
+    // Load configuration from file and update port dynamically
     let config_path = "rumqttd.toml";
     if !Path::new(config_path).exists() {
         return Err(format!("MQTT broker config file {} not found", config_path));
@@ -30,7 +18,13 @@ pub async fn setup_mqtt_broker() -> Result<Arc<AsyncClient>, String> {
     let config_content = std::fs::read_to_string(config_path)
         .map_err(|e| format!("Failed to read broker config: {}", e))?;
     
-    let config: BrokerConfig = toml::from_str(&config_content)
+    // Replace the hardcoded port with the dynamic port
+    let updated_config_content = config_content.replace(
+        "listen = \"0.0.0.0:1883\"", 
+        &format!("listen = \"{}:{}\"", broker_host, broker_port)
+    );
+    
+    let config: BrokerConfig = toml::from_str(&updated_config_content)
         .map_err(|e| format!("Failed to parse broker config: {}", e))?;
     
     // Start broker in background thread (broker.start() is blocking)
@@ -46,7 +40,7 @@ pub async fn setup_mqtt_broker() -> Result<Arc<AsyncClient>, String> {
     tokio::time::sleep(Duration::from_secs(3)).await;
     
     // Create MQTT client for publishing
-    let mut mqttoptions = MqttOptions::new("crypto-server-publisher", &broker_host, broker_port);
+    let mut mqttoptions = MqttOptions::new("crypto-server-publisher", broker_host, broker_port);
     mqttoptions.set_keep_alive(Duration::from_secs(30));
     mqttoptions.set_clean_session(true);
     mqttoptions.set_max_packet_size(102400, 102400); // Match broker config

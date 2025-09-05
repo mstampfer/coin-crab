@@ -48,7 +48,7 @@ async fn main() -> std::io::Result<()> {
     config.setup_logging();
     
     // Setup MQTT broker and client  
-    let mqtt_client = match setup_mqtt_broker().await {
+    let mqtt_client = match setup_mqtt_broker(&config.mqtt_broker_host, config.mqtt_broker_port).await {
         Ok(client) => {
             info!("MQTT broker and client setup complete");
             client
@@ -57,9 +57,8 @@ async fn main() -> std::io::Result<()> {
             log::error!("Failed to setup MQTT broker: {}", e);
             log::warn!("Falling back to HTTP-only mode");
             // Create a dummy client as fallback
-            let broker_host = std::env::var("MQTT_BROKER_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
             use rumqttc::MqttOptions;
-            let mqttoptions = MqttOptions::new("dummy-client", &broker_host, 1884);
+            let mqttoptions = MqttOptions::new("dummy-client", &config.mqtt_broker_host, config.mqtt_broker_port + 1);
             let (dummy_client, _) = rumqttc::AsyncClient::new(mqttoptions, 10);
             Arc::new(dummy_client)
         }
