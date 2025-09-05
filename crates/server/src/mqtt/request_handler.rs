@@ -19,7 +19,13 @@ pub async fn setup_mqtt_request_handling(state: web::Data<AppState>) -> Result<(
     
     // Create a new client connection for the event loop
     let broker_host = std::env::var("MQTT_BROKER_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
-    let mut mqttoptions = MqttOptions::new("crypto-server-subscriber", &broker_host, 1883);
+    let broker_port = std::env::var("MQTT_BROKER_PORT")
+        .and_then(|s| s.parse().map_err(|_| std::env::VarError::NotPresent))
+        .unwrap_or_else(|_| {
+            warn!("MQTT_BROKER_PORT not set in .env file, using default (1883)");
+            1883
+        });
+    let mut mqttoptions = MqttOptions::new("crypto-server-subscriber", &broker_host, broker_port);
     mqttoptions.set_keep_alive(Duration::from_secs(30));
     mqttoptions.set_clean_session(true);
     mqttoptions.set_max_packet_size(102400, 102400);

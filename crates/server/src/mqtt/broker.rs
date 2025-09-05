@@ -6,13 +6,8 @@ use std::time::Duration;
 use std::sync::Arc;
 use log::{info, warn, error, debug};
 
-pub async fn setup_mqtt_broker() -> Result<Arc<AsyncClient>, String> {
-    let broker_host = std::env::var("MQTT_BROKER_HOST").unwrap_or_else(|_| {
-        warn!("MQTT_BROKER_HOST not set in .env file, using localhost (127.0.0.1)");
-        "127.0.0.1".to_string()
-    });
-    
-    info!("Starting embedded MQTT broker on {}:1883", broker_host);
+pub async fn setup_mqtt_broker(broker_host: &str, broker_port: u16) -> Result<Arc<AsyncClient>, String> {
+    info!("Starting embedded MQTT broker on {}:{}", broker_host, broker_port);
     
     // Load configuration from file
     let config_path = "rumqttd.toml";
@@ -39,7 +34,7 @@ pub async fn setup_mqtt_broker() -> Result<Arc<AsyncClient>, String> {
     tokio::time::sleep(Duration::from_secs(3)).await;
     
     // Create MQTT client for publishing
-    let mut mqttoptions = MqttOptions::new("crypto-server-publisher", &broker_host, 1883);
+    let mut mqttoptions = MqttOptions::new("crypto-server-publisher", broker_host, broker_port);
     mqttoptions.set_keep_alive(Duration::from_secs(30));
     mqttoptions.set_clean_session(true);
     mqttoptions.set_max_packet_size(102400, 102400); // Match broker config

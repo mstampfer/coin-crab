@@ -113,19 +113,19 @@ jobs:
     - name: Copy server files to EC2
       run: |
         # Create directory on EC2
-        ssh -i ~/.ssh/aws-freetier.pem ec2-user@100.26.107.175 "mkdir -p coin_crab_server"
+        ssh -i ~/.ssh/aws-freetier.pem ec2-user@100.26.107.175 "mkdir -p coin_crab_server/prod"
         
         # Copy binary
-        scp -i ~/.ssh/aws-freetier.pem ./artifacts/coin-crab-server ec2-user@100.26.107.175:~/coin_crab_server/
+        scp -i ~/.ssh/aws-freetier.pem ./artifacts/coin-crab-server ec2-user@100.26.107.175:~/coin_crab_server/prod/
         
         # Copy configuration files
-        scp -i ~/.ssh/aws-freetier.pem crates/server/.env.server ec2-user@100.26.107.175:~/coin_crab_server/ || echo "No .env.server file found - you'll need to create it manually on the server"
-        scp -i ~/.ssh/aws-freetier.pem crates/server/rumqttd.toml ec2-user@100.26.107.175:~/coin_crab_server/
+        scp -i ~/.ssh/aws-freetier.pem crates/server/.env.server ec2-user@100.26.107.175:~/coin_crab_server/prod/ || echo "No .env.server file found - you'll need to create it manually on the server"
+        scp -i ~/.ssh/aws-freetier.pem crates/server/rumqttd.toml ec2-user@100.26.107.175:~/coin_crab_server/prod/
         
     - name: Deploy and restart server
       run: |
         ssh -i ~/.ssh/aws-freetier.pem ec2-user@100.26.107.175 << 'EOF'
-          cd coin_crab_server
+          cd coin_crab_server/prod
           
           # Debug: Check system architecture and binary format
           echo "🔍 EC2 System Info:"
@@ -165,7 +165,7 @@ jobs:
     - name: Verify deployment
       run: |
         ssh -i ~/.ssh/aws-freetier.pem ec2-user@100.26.107.175 << 'EOF'
-          cd coin_crab_server
+          cd coin_crab_server/prod
           echo "🔍 Checking server status..."
           if [ -f server.pid ] && ps -p $(cat server.pid) > /dev/null 2>&1; then
             echo "✅ Server is running with PID $(cat server.pid)"
