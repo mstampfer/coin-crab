@@ -41,11 +41,12 @@ A professional iOS cryptocurrency tracking app built with Rust and SwiftUI, feat
 - **Professional Layout**: Ranking, market caps, and percentage changes
 
 ### ** Rust Workspace Architecture**
+- **Modular Design**: All crates use clean module architecture for maintainability
 - **Separate Deployments**: Independent server and client builds
 - **Workspace Structure**: Organized into `server`, `ios_lib`, and `shared` crates
 - **Code Sharing**: Common data structures and utilities in shared crate
 - **MQTT Communication**: High-performance real-time updates with rumqttd
-- **Configurable Logging**: Environment-based logging with rumqttd suppression
+- **Configurable Logging**: Single LOG_LEVEL parameter controls all logging
 - **Security First**: API keys server-side only, no sensitive data on client
 
 ## Tech Stack
@@ -87,18 +88,40 @@ A professional iOS cryptocurrency tracking app built with Rust and SwiftUI, feat
 coin-crab-app/
 ├── Cargo.toml                  # Workspace manifest (resolver = "2")
 ├── crates/                     # All Rust project crates
-│   ├── server/                 # Server crate (coin-crab-server)
-│   │   ├── src/main.rs         # Server entry point with MQTT broker
+│   ├── server/                 # Server crate (coin-crab-server) - modularized
+│   │   ├── src/
+│   │   │   ├── main.rs         # Server entry point (71 lines)
+│   │   │   ├── types.rs        # Data structures and types
+│   │   │   ├── config.rs       # Configuration management
+│   │   │   ├── handlers.rs     # HTTP API endpoints
+│   │   │   ├── data.rs         # CoinMarketCap API integration
+│   │   │   └── mqtt/           # MQTT functionality
+│   │   │       ├── mod.rs      # Module declarations
+│   │   │       ├── broker.rs   # MQTT broker setup
+│   │   │       ├── publisher.rs # Message publishing
+│   │   │       └── request_handler.rs # Request handling
 │   │   ├── Cargo.toml          # Server dependencies
 │   │   ├── .env.server         # Server config (CMC API key)
 │   │   └── rumqttd.toml        # MQTT broker configuration
-│   ├── ios_lib/                # iOS library crate (rust_ios_lib)
-│   │   ├── src/lib.rs          # MQTT client for iOS FFI
+│   ├── ios_lib/                # iOS library crate (rust_ios_lib) - modularized
+│   │   ├── src/
+│   │   │   ├── lib.rs          # Main interface (32 lines)
+│   │   │   ├── types.rs        # Data structures
+│   │   │   ├── config.rs       # iOS configuration
+│   │   │   ├── ffi.rs          # C FFI functions for Swift
+│   │   │   ├── globals.rs      # Global state management
+│   │   │   └── mqtt/           # MQTT client functionality
+│   │   │       ├── mod.rs      # Module declarations
+│   │   │       ├── client.rs   # MQTT client core
+│   │   │       ├── connection.rs # Connection management
+│   │   │       └── message_handler.rs # Message processing
 │   │   ├── Cargo.toml          # iOS dependencies
-│   │   ├── .env.client         # Client config (MQTT host)
-│   │   └── rust_ios_lib.h      # C header for Swift interop
-│   └── shared/                 # Shared crate for common code
-│       ├── src/lib.rs          # Data structures & utilities
+│   │   └── .env.client         # Client config (MQTT host)
+│   └── shared/                 # Shared crate for common code - modularized
+│       ├── src/
+│       │   ├── lib.rs          # Main interface (22 lines)
+│       │   ├── types.rs        # Shared data structures
+│       │   └── logging.rs      # Logging utilities
 │       └── Cargo.toml          # Shared dependencies
 ├── ios_app/                    # iOS Xcode project
 │   ├── CoinCrab.xcodeproj/     # Xcode project file
@@ -183,8 +206,8 @@ The app uses separate environment files for security:
 MQTT_BROKER_HOST=127.0.0.1
 
 # Logging Configuration
+# Options: OFF, ERROR, WARN, INFO, DEBUG, TRACE
 LOG_LEVEL=ERROR
-ENABLE_DEBUG_LOGGING=false
 ```
 
 **Server Configuration** (`crates/server/.env.server` - git ignored):
@@ -196,8 +219,8 @@ CMC_API_KEY=your_coinmarketcap_api_key_here
 MQTT_BROKER_HOST=127.0.0.1
 
 # Logging Configuration
-LOG_LEVEL=OFF                    # Suppress rumqttd logs
-ENABLE_DEBUG_LOGGING=false
+# Options: OFF, ERROR, WARN, INFO, DEBUG, TRACE
+LOG_LEVEL=INFO                   # Set to OFF to suppress all logs
 ```
 
 **Important Security Notes:**
@@ -213,6 +236,23 @@ The app uses multiple cryptocurrency data sources:
 - **CoinCap**: Backup price source
 
 ## Architecture
+
+### Modular Crate Architecture
+
+All three crates in the workspace follow a clean modular architecture:
+
+**Benefits of Modularization:**
+- **Better Organization**: Each module has a single, clear responsibility
+- **Easier Navigation**: Related code is grouped together in focused modules
+- **Improved Maintainability**: Changes are isolated to relevant modules
+- **Cleaner Dependencies**: Module boundaries make dependencies explicit
+- **Reduced Complexity**: Main files reduced from 500-800 lines to <100 lines
+- **Consistent Pattern**: All crates follow the same modular structure
+
+**Module Structure:**
+- **Server**: `types`, `config`, `handlers`, `data`, `mqtt/*` modules
+- **iOS Library**: `types`, `config`, `ffi`, `globals`, `mqtt/*` modules  
+- **Shared**: `types`, `logging` modules
 
 ### Rust-Powered MQTT Client-Server Architecture
 ```
