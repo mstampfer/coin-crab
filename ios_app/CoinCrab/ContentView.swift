@@ -165,10 +165,6 @@ class CryptoDataManager: ObservableObject {
 struct ContentView: View {
     @StateObject private var cryptoManager = CryptoDataManager()
     @State private var selectedTab = "Markets"
-    @State private var selectedCoinTab = "Coins"
-    @State private var selectedSort = "24h %"
-    @State private var selectedCategory = "Top 100"
-    @State private var selectedCurrency = "USD"
     
     init() {
         print("ContentView: init() called with simplified architecture")
@@ -176,11 +172,7 @@ struct ContentView: View {
     
     var body: some View {
         TabView(selection: $selectedTab) {
-            MarketsView(cryptoManager: cryptoManager, 
-                       selectedCoinTab: $selectedCoinTab,
-                       selectedSort: $selectedSort,
-                       selectedCategory: $selectedCategory,
-                       selectedCurrency: $selectedCurrency)
+            MarketsView(cryptoManager: cryptoManager)
             .tabItem {
                 Image(systemName: "chart.line.uptrend.xyaxis")
                 Text("Markets")
@@ -221,10 +213,8 @@ struct ContentView: View {
 
 struct MarketsView: View {
     @ObservedObject var cryptoManager: CryptoDataManager
-    @Binding var selectedCoinTab: String
-    @Binding var selectedSort: String
-    @Binding var selectedCategory: String
-    @Binding var selectedCurrency: String
+    @State private var showingSearch = false
+    @State private var showingAccount = false
     
     var body: some View {
         NavigationView {
@@ -232,20 +222,6 @@ struct MarketsView: View {
                 Color.black.ignoresSafeArea()
                 
                 VStack(spacing: 0) {
-                    // Market Stats Header
-                    MarketStatsHeaderView()
-                    
-                    // Market Insights
-                    MarketInsightsView()
-                    
-                    // Tab Navigation
-                    CoinTabNavigationView(selectedTab: $selectedCoinTab)
-                    
-                    // Filter Controls
-                    FilterControlsView(selectedCurrency: $selectedCurrency, 
-                                     selectedSort: $selectedSort, 
-                                     selectedCategory: $selectedCategory)
-                    
                     // Coin List
                     CoinListHeaderView()
                     
@@ -263,21 +239,33 @@ struct MarketsView: View {
             .preferredColorScheme(.dark)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Image(systemName: "diamond.fill")
-                        .foregroundColor(.blue)
+                    Image("AppLogo")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 30, height: 30)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack {
-                        Button(action: {}) {
+                        Button(action: {
+                            showingSearch = true
+                        }) {
                             Image(systemName: "magnifyingglass")
                                 .foregroundColor(.white)
                         }
-                        Button(action: {}) {
+                        Button(action: {
+                            showingAccount = true
+                        }) {
                             Image(systemName: "person.crop.circle")
                                 .foregroundColor(.gray)
                         }
                     }
                 }
+            }
+            .sheet(isPresented: $showingSearch) {
+                SearchView()
+            }
+            .sheet(isPresented: $showingAccount) {
+                AccountView()
             }
         }
     }
@@ -1068,6 +1056,30 @@ struct CommunityView: View {
                     .foregroundColor(.gray)
                 
                 Text("Community")
+                    .font(.title)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                
+                Text("Coming soon...")
+                    .font(.body)
+                    .foregroundColor(.gray)
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+}
+
+struct AccountView: View {
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            
+            VStack(spacing: 16) {
+                Image(systemName: "person.crop.circle")
+                    .font(.system(size: 64))
+                    .foregroundColor(.gray)
+                
+                Text("Account")
                     .font(.title)
                     .fontWeight(.bold)
                     .foregroundColor(.white)
