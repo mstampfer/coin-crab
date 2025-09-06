@@ -661,7 +661,6 @@ struct AnimatedPriceView: View {
     let cryptoId: String
     
     @State private var animationColor: Color = .white
-    @State private var animationScale: CGFloat = 1.0
     @State private var isAnimating = false
     @StateObject private var priceTracker = PriceChangeTracker.shared
     
@@ -669,13 +668,17 @@ struct AnimatedPriceView: View {
         Text("$\(price, specifier: "%.2f")")
             .font(.system(size: 16, weight: .semibold))
             .foregroundColor(animationColor)
-            .scaleEffect(animationScale)
             .onChange(of: price) { oldValue, newValue in
                 animatePriceChange(newPrice: newValue)
             }
             .onAppear {
                 // Initialize tracking for this crypto
                 _ = priceTracker.updatePrice(for: cryptoId, newPrice: price)
+            }
+            .onTapGesture {
+                // Test animation by simulating a small price change
+                let testChange = Double.random(in: -0.5...0.5)
+                animatePriceChange(newPrice: price + testChange)
             }
     }
     
@@ -686,29 +689,21 @@ struct AnimatedPriceView: View {
         
         isAnimating = true
         
-        let flashColor: Color = changeType == .increased ? .green : .red
+        let changeColor: Color = changeType == .increased ? .green : .red
         
-        // Quick flash to green/red with subtle scale effect (0.15 seconds)
-        withAnimation(.easeInOut(duration: 0.15)) {
-            animationColor = flashColor
-            animationScale = 1.05
+        // Immediate transition to green/red
+        withAnimation(.easeInOut(duration: 0.1)) {
+            animationColor = changeColor
         }
         
-        // Scale back to normal quickly
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            withAnimation(.easeOut(duration: 0.15)) {
-                animationScale = 1.0
-            }
-        }
-        
-        // Slower transition back to white (2.5 seconds)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            withAnimation(.easeOut(duration: 2.5)) {
+        // Gradually transition back to white over 3 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            withAnimation(.easeOut(duration: 3.0)) {
                 animationColor = .white
             }
             
             // Reset animation flag after total duration
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
                 isAnimating = false
             }
         }

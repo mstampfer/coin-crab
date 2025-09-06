@@ -252,9 +252,11 @@ struct CryptoHeaderView: View {
                     }
                     
                     HStack(spacing: 4) {
-                        Text("$\(cryptocurrency.quote.USD.price, specifier: "%.2f")")
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundColor(.white)
+                        AnimatedPriceView(
+                            price: cryptocurrency.quote.USD.price,
+                            cryptoId: cryptocurrency.symbol
+                        )
+                        .font(.system(size: 28, weight: .bold))
                     }
                 }
                 
@@ -485,10 +487,12 @@ struct FullscreenChartView: View {
                             }
                             
                             HStack(spacing: 12) {
-                                Text("$\(cryptocurrency.quote.USD.price, specifier: "%.2f")")
-                                    .font(.title)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.white)
+                                AnimatedPriceView(
+                                    price: cryptocurrency.quote.USD.price,
+                                    cryptoId: cryptocurrency.symbol
+                                )
+                                .font(.title)
+                                .fontWeight(.semibold)
                                 
                                 HStack(spacing: 4) {
                                     Image(systemName: cryptocurrency.quote.USD.percent_change_24h >= 0 ? "triangle.fill" : "triangle.fill")
