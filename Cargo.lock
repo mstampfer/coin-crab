@@ -597,6 +597,7 @@ dependencies = [
  "dotenv",
  "env_logger",
  "log",
+ "rand 0.8.5",
  "reqwest",
  "rumqttc",
  "rumqttd",

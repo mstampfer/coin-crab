@@ -2,6 +2,11 @@ import SwiftUI
 import Foundation
 import Combine
 
+// MARK: - NotificationCenter Extension
+extension NSNotification.Name {
+    static let mqttPriceUpdate = NSNotification.Name("mqttPriceUpdate")
+}
+
 // MARK: - Data Models
 struct CryptoCurrency: Codable, Identifiable {
     let id: Int32
@@ -62,8 +67,8 @@ class CryptoDataManager: ObservableObject {
     private let maxRetryAttempts = 5
     
     init() {
-        print("CryptoDataManager: Initializing with Rust FFI delegation architecture")
-        startPeriodicRefresh()
+        print("CryptoDataManager: Initializing with real-time MQTT callback architecture")
+        setupRealTimeUpdates()
     }
     
     deinit {
@@ -160,6 +165,52 @@ class CryptoDataManager: ObservableObject {
         retryAttempts = 0 // Reset retry counter for manual refresh
         fetchCryptoPrices()
     }
+    
+    private func setupRealTimeUpdates() {
+        print("CryptoDataManager: Setting up real-time MQTT push notifications - NO POLLING")
+        
+        // Initial fetch to get data immediately AND initialize MQTT client
+        fetchCryptoPrices()
+        
+        // Wait a moment for MQTT client to initialize, then register callback
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            self.setupMQTTCallback()
+            print("CryptoDataManager: Real-time MQTT callback registered after client initialization")
+        }
+        
+        print("CryptoDataManager: Waiting for real-time MQTT push notifications only")
+        print("CryptoDataManager: No polling timers active")
+    }
+    
+    private func setupMQTTCallback() {
+        print("CryptoDataManager: Registering MQTT callback for real-time updates")
+        
+        // Simple callback that triggers data fetch when MQTT receives new data
+        let callback: @convention(c) (UnsafeRawPointer?) -> Void = { context in
+            DispatchQueue.main.async {
+                print("MQTT Callback: Received real-time price update - fetching new data")
+                // Post notification to trigger data fetch
+                NotificationCenter.default.post(name: .mqttPriceUpdate, object: nil)
+            }
+        }
+        
+        // Register the callback with Rust FFI - MUST work for real-time updates
+        register_price_update_callback(callback)
+        print("CryptoDataManager: Real-time MQTT callback registered - NO POLLING!")
+        
+        // Listen for MQTT notifications
+        NotificationCenter.default.addObserver(
+            forName: .mqttPriceUpdate,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            print("CryptoDataManager: Processing MQTT price update notification")
+            self?.fetchCryptoPrices()
+        }
+        
+        print("CryptoDataManager: MQTT callback system registered successfully")
+        print("CryptoDataManager: NO POLLING - Waiting for real-time MQTT callbacks only!")
+    }
 }
 
 struct ContentView: View {
@@ -171,43 +222,104 @@ struct ContentView: View {
     }
     
     var body: some View {
-        TabView(selection: $selectedTab) {
-            MarketsView(cryptoManager: cryptoManager)
-            .tabItem {
-                Image(systemName: "chart.line.uptrend.xyaxis")
-                Text("Markets")
+        VStack(spacing: 0) {
+            // Main content area
+            ZStack {
+                switch selectedTab {
+                case "Markets":
+                    MarketsView(cryptoManager: cryptoManager)
+                case "Alpha":
+                    AlphaView()
+                case "Search":
+                    SearchView()
+                case "Portfolio":
+                    PortfolioView()
+                case "Community":
+                    CommunityView()
+                default:
+                    MarketsView(cryptoManager: cryptoManager)
+                }
             }
-            .tag("Markets")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             
-            AlphaView()
-            .tabItem {
-                Image(systemName: "brain.head.profile")
-                Text("Alpha")
+            // Custom tab bar with text below
+            VStack(spacing: 0) {
+                // Tab bar
+                HStack(spacing: 0) {
+                    CustomTabBarItem(
+                        icon: "chart.line.uptrend.xyaxis",
+                        title: "Markets",
+                        isSelected: selectedTab == "Markets",
+                        action: { selectedTab = "Markets" }
+                    )
+                    
+                    CustomTabBarItem(
+                        icon: "brain.head.profile",
+                        title: "Alpha",
+                        isSelected: selectedTab == "Alpha",
+                        action: { selectedTab = "Alpha" }
+                    )
+                    
+                    CustomTabBarItem(
+                        icon: "magnifyingglass",
+                        title: "Search",
+                        isSelected: selectedTab == "Search",
+                        action: { selectedTab = "Search" }
+                    )
+                    
+                    CustomTabBarItem(
+                        icon: "chart.pie",
+                        title: "Portfolio",
+                        isSelected: selectedTab == "Portfolio",
+                        action: { selectedTab = "Portfolio" }
+                    )
+                    
+                    CustomTabBarItem(
+                        icon: "person.2",
+                        title: "Community",
+                        isSelected: selectedTab == "Community",
+                        action: { selectedTab = "Community" }
+                    )
+                }
+                .padding(.top, 4)
+                .padding(.horizontal, 16)
+                .background(Color.black)
+                
+                // "powered by Rust" text below tab bar
+                Text("powered by Rust")
+                    .font(.caption2)
+                    .foregroundColor(.gray.opacity(0.6))
+                    .padding(.top, 2)
+                    .padding(.bottom, 4)
+                    .background(Color.black)
             }
-            .tag("Alpha")
-            
-            SearchView()
-            .tabItem {
-                Image(systemName: "magnifyingglass")
-                Text("Search")
-            }
-            .tag("Search")
-            
-            PortfolioView()
-            .tabItem {
-                Image(systemName: "chart.pie")
-                Text("Portfolio")
-            }
-            .tag("Portfolio")
-            
-            CommunityView()
-            .tabItem {
-                Image(systemName: "person.2")
-                Text("Community")
-            }
-            .tag("Community")
         }
-        .accentColor(.blue)
+        .background(Color.black)
+        .ignoresSafeArea(.keyboard, edges: .bottom)
+    }
+}
+
+struct CustomTabBarItem: View {
+    let icon: String
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 2) {
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                    .foregroundColor(isSelected ? .blue : .gray)
+                
+                Text(title)
+                    .font(.caption2)
+                    .foregroundColor(isSelected ? .blue : .gray)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 
@@ -600,7 +712,6 @@ struct AnimatedPriceView: View {
     let cryptoId: String
     
     @State private var animationColor: Color = .white
-    @State private var animationScale: CGFloat = 1.0
     @State private var isAnimating = false
     @StateObject private var priceTracker = PriceChangeTracker.shared
     
@@ -608,13 +719,17 @@ struct AnimatedPriceView: View {
         Text("$\(price, specifier: "%.2f")")
             .font(.system(size: 16, weight: .semibold))
             .foregroundColor(animationColor)
-            .scaleEffect(animationScale)
             .onChange(of: price) { oldValue, newValue in
                 animatePriceChange(newPrice: newValue)
             }
             .onAppear {
                 // Initialize tracking for this crypto
                 _ = priceTracker.updatePrice(for: cryptoId, newPrice: price)
+            }
+            .onTapGesture {
+                // Test animation by simulating a small price change
+                let testChange = Double.random(in: -0.5...0.5)
+                animatePriceChange(newPrice: price + testChange)
             }
     }
     
@@ -625,29 +740,21 @@ struct AnimatedPriceView: View {
         
         isAnimating = true
         
-        let flashColor: Color = changeType == .increased ? .green : .red
+        let changeColor: Color = changeType == .increased ? .green : .red
         
-        // Quick flash to green/red with subtle scale effect (0.15 seconds)
-        withAnimation(.easeInOut(duration: 0.15)) {
-            animationColor = flashColor
-            animationScale = 1.05
+        // Immediate transition to green/red
+        withAnimation(.easeInOut(duration: 0.1)) {
+            animationColor = changeColor
         }
         
-        // Scale back to normal quickly
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            withAnimation(.easeOut(duration: 0.15)) {
-                animationScale = 1.0
-            }
-        }
-        
-        // Slower transition back to white (2.5 seconds)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            withAnimation(.easeOut(duration: 2.5)) {
+        // Gradually transition back to white over 3 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            withAnimation(.easeOut(duration: 3.0)) {
                 animationColor = .white
             }
             
             // Reset animation flag after total duration
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
                 isAnimating = false
             }
         }

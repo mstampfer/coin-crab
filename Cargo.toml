@@ -28,3 +28,4 @@ chrono = { version = "0.4", features = ["serde"] }
 rumqttd = "0.18"
 rumqttc = "0.24"
 toml = "0.8"
+rand = "0.8"

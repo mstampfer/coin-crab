@@ -71,6 +71,7 @@ async fn main() -> std::io::Result<()> {
         api_key: config.api_key,
         mqtt_client,
         historical_cache: Arc::new(Mutex::new(HashMap::new())),
+        update_interval_seconds: config.update_interval_seconds,
     });
     
     // Setup MQTT request handling now that AppState is created

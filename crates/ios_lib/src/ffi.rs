@@ -1,10 +1,10 @@
 use std::ffi::{CStr, CString};
-use std::os::raw::c_char;
+use std::os::raw::{c_char, c_void};
 use std::time::Duration;
 use tokio::runtime::Runtime;
 
 use crate::globals::MQTT_CLIENT;
-use crate::mqtt::MQTTClient;
+use crate::mqtt::{MQTTClient, client::PriceUpdateCallback};
 use crate::types::{CryptoClientResult, HistoricalDataResult};
 use shared::debug_log;
 
@@ -215,4 +215,17 @@ fn return_mqtt_error(error_msg: &str) -> *mut c_char {
         r#"{"success":false,"error":"MQTT connection failed","data":null,"last_updated":null,"cached":false}"#.to_string()
     });
     CString::new(json).unwrap().into_raw()
+}
+
+// Function to register iOS callback for real-time price updates
+#[no_mangle]
+pub extern "C" fn register_price_update_callback(callback: PriceUpdateCallback) {
+    debug_log("register_price_update_callback: Registering iOS callback for real-time price updates");
+    
+    if let Some(ref client) = *MQTT_CLIENT.lock().unwrap() {
+        client.set_price_update_callback(callback);
+        debug_log("register_price_update_callback: Callback registered successfully");
+    } else {
+        debug_log("register_price_update_callback: MQTT client not initialized - callback will be lost");
+    }
 }

@@ -27,6 +27,7 @@ pub struct AppState {
     pub api_key: String,
     pub mqtt_client: Arc<AsyncClient>,
     pub historical_cache: Arc<Mutex<HashMap<String, (HistoricalDataResult, SystemTime)>>>,
+    pub update_interval_seconds: u64,
 }
 
 #[derive(Deserialize)]
