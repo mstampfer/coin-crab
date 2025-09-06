@@ -171,43 +171,104 @@ struct ContentView: View {
     }
     
     var body: some View {
-        TabView(selection: $selectedTab) {
-            MarketsView(cryptoManager: cryptoManager)
-            .tabItem {
-                Image(systemName: "chart.line.uptrend.xyaxis")
-                Text("Markets")
+        VStack(spacing: 0) {
+            // Main content area
+            ZStack {
+                switch selectedTab {
+                case "Markets":
+                    MarketsView(cryptoManager: cryptoManager)
+                case "Alpha":
+                    AlphaView()
+                case "Search":
+                    SearchView()
+                case "Portfolio":
+                    PortfolioView()
+                case "Community":
+                    CommunityView()
+                default:
+                    MarketsView(cryptoManager: cryptoManager)
+                }
             }
-            .tag("Markets")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             
-            AlphaView()
-            .tabItem {
-                Image(systemName: "brain.head.profile")
-                Text("Alpha")
+            // Custom tab bar with text below
+            VStack(spacing: 0) {
+                // Tab bar
+                HStack(spacing: 0) {
+                    CustomTabBarItem(
+                        icon: "chart.line.uptrend.xyaxis",
+                        title: "Markets",
+                        isSelected: selectedTab == "Markets",
+                        action: { selectedTab = "Markets" }
+                    )
+                    
+                    CustomTabBarItem(
+                        icon: "brain.head.profile",
+                        title: "Alpha",
+                        isSelected: selectedTab == "Alpha",
+                        action: { selectedTab = "Alpha" }
+                    )
+                    
+                    CustomTabBarItem(
+                        icon: "magnifyingglass",
+                        title: "Search",
+                        isSelected: selectedTab == "Search",
+                        action: { selectedTab = "Search" }
+                    )
+                    
+                    CustomTabBarItem(
+                        icon: "chart.pie",
+                        title: "Portfolio",
+                        isSelected: selectedTab == "Portfolio",
+                        action: { selectedTab = "Portfolio" }
+                    )
+                    
+                    CustomTabBarItem(
+                        icon: "person.2",
+                        title: "Community",
+                        isSelected: selectedTab == "Community",
+                        action: { selectedTab = "Community" }
+                    )
+                }
+                .padding(.top, 4)
+                .padding(.horizontal, 16)
+                .background(Color.black)
+                
+                // "powered by Rust" text below tab bar
+                Text("powered by Rust")
+                    .font(.caption2)
+                    .foregroundColor(.gray.opacity(0.6))
+                    .padding(.top, 2)
+                    .padding(.bottom, 4)
+                    .background(Color.black)
             }
-            .tag("Alpha")
-            
-            SearchView()
-            .tabItem {
-                Image(systemName: "magnifyingglass")
-                Text("Search")
-            }
-            .tag("Search")
-            
-            PortfolioView()
-            .tabItem {
-                Image(systemName: "chart.pie")
-                Text("Portfolio")
-            }
-            .tag("Portfolio")
-            
-            CommunityView()
-            .tabItem {
-                Image(systemName: "person.2")
-                Text("Community")
-            }
-            .tag("Community")
         }
-        .accentColor(.blue)
+        .background(Color.black)
+        .ignoresSafeArea(.keyboard, edges: .bottom)
+    }
+}
+
+struct CustomTabBarItem: View {
+    let icon: String
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 2) {
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                    .foregroundColor(isSelected ? .blue : .gray)
+                
+                Text(title)
+                    .font(.caption2)
+                    .foregroundColor(isSelected ? .blue : .gray)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 
