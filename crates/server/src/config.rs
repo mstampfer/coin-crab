@@ -6,6 +6,7 @@ pub struct ServerConfig {
     pub log_level: String,
     pub mqtt_broker_host: String,
     pub mqtt_broker_port: u16,
+    pub update_interval_seconds: u64,
 }
 
 impl ServerConfig {
@@ -17,11 +18,11 @@ impl ServerConfig {
         
         println!("Server starting from directory: {}", current_dir);
         
-        let env_file_path = Path::new(".env.server");
+        let env_file_path = Path::new("crates/server/.env.server");
         println!("Looking for .env.server at: {}", env_file_path.display());
         println!(".env.server file exists: {}", env_file_path.exists());
         
-        match dotenv::from_filename(".env.server") {
+        match dotenv::from_filename("crates/server/.env.server") {
             Ok(path) => println!("Successfully loaded .env.server from: {}", path.display()),
             Err(e) => println!("Failed to load .env.server: {}", e),
         }
@@ -46,11 +47,19 @@ impl ServerConfig {
                 1883
             });
 
+        let update_interval_seconds = std::env::var("UPDATE_INTERVAL_SECONDS")
+            .and_then(|s| s.parse().map_err(|_| std::env::VarError::NotPresent))
+            .unwrap_or_else(|_| {
+                warn!("UPDATE_INTERVAL_SECONDS not set in .env file, using default (900 seconds / 15 minutes)");
+                900
+            });
+
         Ok(ServerConfig {
             api_key,
             log_level,
             mqtt_broker_host,
             mqtt_broker_port,
+            update_interval_seconds,
         })
     }
 

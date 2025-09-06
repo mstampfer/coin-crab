@@ -1,14 +1,17 @@
 use actix_web::web;
 use reqwest::Client;
 use std::time::{Duration, SystemTime};
+use std::collections::HashMap;
 use tokio::time;
 use log::{info, warn, error};
 use crate::types::{AppState, CoinMarketCapResponse};
 use crate::mqtt::{publish_crypto_data_to_mqtt, publish_historical_data_to_mqtt, publish_empty_retained_message};
-use shared::{HistoricalDataPoint, HistoricalDataResult};
-
+use shared::{HistoricalDataPoint, HistoricalDataResult, CryptoCurrency};
 pub async fn fetch_data_periodically(state: web::Data<AppState>) {
-    let mut interval = time::interval(Duration::from_secs(15));
+    info!("Starting data fetch with interval: {} seconds ({} minutes)", 
+          state.update_interval_seconds, 
+          state.update_interval_seconds / 60);
+    let mut interval = time::interval(Duration::from_secs(state.update_interval_seconds));
     
     loop {
         interval.tick().await;
@@ -32,7 +35,7 @@ pub async fn fetch_data_periodically(state: web::Data<AppState>) {
                         Ok(cmc_data) => {
                             info!("Successfully fetched {} cryptocurrencies", cmc_data.data.len());
                             
-                            // Clone data for MQTT publishing before updating cache
+                            // Clone data for MQTT publishing before moving to cache
                             let crypto_data_for_mqtt = cmc_data.data.clone();
                             
                             // Update cache (scoped to release locks before await)
@@ -44,7 +47,8 @@ pub async fn fetch_data_periodically(state: web::Data<AppState>) {
                                 *last_fetch = SystemTime::now();
                             }
                             
-                            // Publish to MQTT (locks are now released) - ignore errors for now
+                            // Publish real market data to MQTT
+                            info!("Publishing MQTT update with all {} cryptocurrencies", crypto_data_for_mqtt.len());
                             let _ = tokio::time::timeout(
                                 Duration::from_millis(100),
                                 publish_crypto_data_to_mqtt(&state.mqtt_client, &crypto_data_for_mqtt)
@@ -407,3 +411,4 @@ pub async fn fetch_historical_data_server(
         },
     }
 }
+
