@@ -9,6 +9,7 @@ use crate::config::Config;
 use crate::types::{CryptoCurrency, HistoricalDataResult};
 use shared::debug_log;
 use super::message_handler::MessageHandler;
+use super::client::PriceUpdateCallback;
 
 pub struct ConnectionManager {
     config: Config,
@@ -44,8 +45,9 @@ impl ConnectionManager {
         historical_data: Arc<Mutex<HashMap<String, HistoricalDataResult>>>,
         is_connected: Arc<Mutex<bool>>,
         connection_attempts: Arc<Mutex<u32>>,
+        price_update_callback: Arc<Mutex<Option<PriceUpdateCallback>>>,
     ) {
-        let message_handler = MessageHandler::new(latest_prices.clone(), historical_data.clone());
+        let message_handler = MessageHandler::new(latest_prices.clone(), historical_data.clone(), price_update_callback.clone());
         
         // Spawn event loop handling in the background
         debug_log("MQTT: About to spawn event loop thread");

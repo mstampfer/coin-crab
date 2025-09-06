@@ -17,6 +17,7 @@ chrono = { workspace = true }
 rumqttd = { workspace = true }
 rumqttc = { workspace = true }
 toml = { workspace = true }
+rand = { workspace = true }
 
 # Server-specific dependencies
 shared = { path = "../shared" }

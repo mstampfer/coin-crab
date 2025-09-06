@@ -5,20 +5,24 @@ use log::info;
 
 use crate::types::{CryptoCurrency, HistoricalDataResult};
 use shared::debug_log;
+use super::client::PriceUpdateCallback;
 
 pub struct MessageHandler {
     latest_prices: Arc<Mutex<Option<Vec<CryptoCurrency>>>>,
     historical_data: Arc<Mutex<HashMap<String, HistoricalDataResult>>>,
+    price_update_callback: Arc<Mutex<Option<PriceUpdateCallback>>>,
 }
 
 impl MessageHandler {
     pub fn new(
         latest_prices: Arc<Mutex<Option<Vec<CryptoCurrency>>>>,
         historical_data: Arc<Mutex<HashMap<String, HistoricalDataResult>>>,
+        price_update_callback: Arc<Mutex<Option<PriceUpdateCallback>>>,
     ) -> Self {
         Self {
             latest_prices,
             historical_data,
+            price_update_callback,
         }
     }
     
@@ -54,6 +58,14 @@ impl MessageHandler {
                 *self.latest_prices.lock().unwrap() = Some(crypto_data.clone());
                 debug_log(&format!("MQTT: *** CACHED {} CRYPTOCURRENCIES ***", crypto_data.len()));
                 info!("MQTT: Updated latest prices from broker");
+                
+                // Trigger callback to notify iOS of price update
+                if let Some(callback) = *self.price_update_callback.lock().unwrap() {
+                    debug_log("MQTT: Triggering iOS callback for price update");
+                    callback(std::ptr::null());
+                } else {
+                    debug_log("MQTT: No callback registered, price update not sent to iOS");
+                }
             }
             Err(e) => {
                 debug_log(&format!("MQTT: Failed to parse crypto/prices/latest - Error: {}", e));

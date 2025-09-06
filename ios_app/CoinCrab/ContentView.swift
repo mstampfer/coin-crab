@@ -2,6 +2,11 @@ import SwiftUI
 import Foundation
 import Combine
 
+// MARK: - NotificationCenter Extension
+extension NSNotification.Name {
+    static let mqttPriceUpdate = NSNotification.Name("mqttPriceUpdate")
+}
+
 // MARK: - Data Models
 struct CryptoCurrency: Codable, Identifiable {
     let id: Int32
@@ -62,8 +67,8 @@ class CryptoDataManager: ObservableObject {
     private let maxRetryAttempts = 5
     
     init() {
-        print("CryptoDataManager: Initializing with Rust FFI delegation architecture")
-        startPeriodicRefresh()
+        print("CryptoDataManager: Initializing with real-time MQTT callback architecture")
+        setupRealTimeUpdates()
     }
     
     deinit {
@@ -159,6 +164,52 @@ class CryptoDataManager: ObservableObject {
         print("Manual refresh requested - calling Rust")
         retryAttempts = 0 // Reset retry counter for manual refresh
         fetchCryptoPrices()
+    }
+    
+    private func setupRealTimeUpdates() {
+        print("CryptoDataManager: Setting up real-time MQTT push notifications - NO POLLING")
+        
+        // Initial fetch to get data immediately AND initialize MQTT client
+        fetchCryptoPrices()
+        
+        // Wait a moment for MQTT client to initialize, then register callback
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            self.setupMQTTCallback()
+            print("CryptoDataManager: Real-time MQTT callback registered after client initialization")
+        }
+        
+        print("CryptoDataManager: Waiting for real-time MQTT push notifications only")
+        print("CryptoDataManager: No polling timers active")
+    }
+    
+    private func setupMQTTCallback() {
+        print("CryptoDataManager: Registering MQTT callback for real-time updates")
+        
+        // Simple callback that triggers data fetch when MQTT receives new data
+        let callback: @convention(c) (UnsafeRawPointer?) -> Void = { context in
+            DispatchQueue.main.async {
+                print("MQTT Callback: Received real-time price update - fetching new data")
+                // Post notification to trigger data fetch
+                NotificationCenter.default.post(name: .mqttPriceUpdate, object: nil)
+            }
+        }
+        
+        // Register the callback with Rust FFI - MUST work for real-time updates
+        register_price_update_callback(callback)
+        print("CryptoDataManager: Real-time MQTT callback registered - NO POLLING!")
+        
+        // Listen for MQTT notifications
+        NotificationCenter.default.addObserver(
+            forName: .mqttPriceUpdate,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            print("CryptoDataManager: Processing MQTT price update notification")
+            self?.fetchCryptoPrices()
+        }
+        
+        print("CryptoDataManager: MQTT callback system registered successfully")
+        print("CryptoDataManager: NO POLLING - Waiting for real-time MQTT callbacks only!")
     }
 }
 
