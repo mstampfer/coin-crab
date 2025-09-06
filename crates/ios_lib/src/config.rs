@@ -34,7 +34,10 @@ impl Config {
         
         let broker_port = std::env::var("MQTT_BROKER_PORT")
             .and_then(|s| s.parse().map_err(|_| std::env::VarError::NotPresent))
-            .unwrap_or(DEFAULT_BROKER_PORT);
+            .unwrap_or_else(|_| {
+                debug_log("Config: MQTT_BROKER_PORT not set, using default (1883)");
+                DEFAULT_BROKER_PORT
+            });
         
         let log_level = std::env::var("LOG_LEVEL").unwrap_or_else(|_| "DEBUG".to_string());
         

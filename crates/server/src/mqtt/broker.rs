@@ -9,7 +9,7 @@ use log::{info, warn, error, debug};
 pub async fn setup_mqtt_broker(broker_host: &str, broker_port: u16) -> Result<Arc<AsyncClient>, String> {
     info!("Starting embedded MQTT broker on {}:{}", broker_host, broker_port);
     
-    // Load configuration from file
+    // Load configuration from file and update port dynamically
     let config_path = "rumqttd.toml";
     if !Path::new(config_path).exists() {
         return Err(format!("MQTT broker config file {} not found", config_path));
@@ -18,7 +18,13 @@ pub async fn setup_mqtt_broker(broker_host: &str, broker_port: u16) -> Result<Ar
     let config_content = std::fs::read_to_string(config_path)
         .map_err(|e| format!("Failed to read broker config: {}", e))?;
     
-    let config: BrokerConfig = toml::from_str(&config_content)
+    // Replace the hardcoded port with the dynamic port
+    let updated_config_content = config_content.replace(
+        "listen = \"0.0.0.0:1883\"", 
+        &format!("listen = \"{}:{}\"", broker_host, broker_port)
+    );
+    
+    let config: BrokerConfig = toml::from_str(&updated_config_content)
         .map_err(|e| format!("Failed to parse broker config: {}", e))?;
     
     // Start broker in background thread (broker.start() is blocking)
