@@ -2,6 +2,7 @@ import SwiftUI
 import Foundation
 import Combine
 
+
 // MARK: - NotificationCenter Extension
 extension NSNotification.Name {
     static let mqttPriceUpdate = NSNotification.Name("mqttPriceUpdate")
@@ -350,12 +351,6 @@ struct MarketsView: View {
             .navigationBarTitleDisplayMode(.large)
             .preferredColorScheme(.dark)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Image("AppLogo")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 30, height: 30)
-                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack {
                         Button(action: {
@@ -901,66 +896,49 @@ struct CryptoIcon: View {
             return
         }
         
-        // No direct network calls - use fallback icon immediately
-        // Icon loading should be delegated to Rust layer if needed
-        isLoading = false
+        // Load from local server's logo endpoint
+        loadIconFromServer()
     }
     
-    private func getCoinMarketCapId(for symbol: String) -> String {
-        // Map common symbols to their CoinMarketCap IDs for better accuracy
-        let symbolMap: [String: String] = [
-            "BTC": "1",
-            "ETH": "1027",
-            "USDT": "825",
-            "BNB": "1839",
-            "SOL": "5426",
-            "USDC": "3408",
-            "XRP": "52",
-            "DOGE": "74",
-            "ADA": "2010",
-            "SHIB": "5994",
-            "AVAX": "5805",
-            "DOT": "6636",
-            "LINK": "1975",
-            "BCH": "1831",
-            "NEAR": "6535",
-            "MATIC": "3890",
-            "UNI": "7083",
-            "LTC": "2",
-            "ICP": "8916",
-            "LEO": "3957"
-        ]
+    private func loadIconFromServer() {
+        guard let url = URL(string: "http://127.0.0.1:8080/api/logo/\(symbol)") else {
+            print("CryptoIcon: Invalid URL for symbol \(symbol)")
+            isLoading = false
+            return
+        }
         
-        return symbolMap[symbol.uppercased()] ?? "1"
+        print("CryptoIcon: Loading icon for \(symbol) from server: \(url)")
+        
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("CryptoIcon: Network error for \(self.symbol): \(error)")
+                    self.isLoading = false
+                    return
+                }
+                
+                if let httpResponse = response as? HTTPURLResponse {
+                    print("CryptoIcon: HTTP response for \(self.symbol): \(httpResponse.statusCode)")
+                    
+                    if httpResponse.statusCode == 200, let data = data, !data.isEmpty {
+                        print("CryptoIcon: Successfully loaded \(data.count) bytes for \(self.symbol)")
+                        IconCache.shared.setIcon(for: self.symbol, data: data)
+                        self.imageData = data
+                    } else if httpResponse.statusCode == 404 {
+                        print("CryptoIcon: No logo mapping found for \(self.symbol) - using fallback colored circle")
+                        // Don't cache 404s, just fall back to colored circle
+                    } else {
+                        print("CryptoIcon: Failed to load icon for \(self.symbol) - status: \(httpResponse.statusCode), data size: \(data?.count ?? 0)")
+                    }
+                } else {
+                    print("CryptoIcon: Invalid HTTP response for \(self.symbol)")
+                }
+                
+                self.isLoading = false
+            }
+        }.resume()
     }
     
-    private func getCoinGeckoId(for symbol: String) -> String {
-        // Map common symbols to their CoinGecko image IDs
-        let symbolMap: [String: String] = [
-            "BTC": "1",
-            "ETH": "279",
-            "USDT": "825",
-            "BNB": "825",
-            "SOL": "4128",
-            "USDC": "6319",
-            "XRP": "44",
-            "DOGE": "5",
-            "ADA": "975",
-            "SHIB": "11939",
-            "AVAX": "12559",
-            "DOT": "12171",
-            "LINK": "1975",
-            "BCH": "1831",
-            "NEAR": "14803",
-            "MATIC": "4713",
-            "UNI": "12504",
-            "LTC": "2",
-            "ICP": "8916",
-            "LEO": "11150"
-        ]
-        
-        return symbolMap[symbol.uppercased()] ?? "1" // Default to Bitcoin if not found
-    }
     
     private func colorForSymbol(_ symbol: String) -> Color {
         // Use brand colors for popular cryptocurrencies

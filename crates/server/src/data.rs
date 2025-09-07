@@ -3,8 +3,10 @@ use reqwest::Client;
 use std::time::{Duration, SystemTime};
 use tokio::time;
 use log::{info, warn, error};
-use crate::types::{AppState, CoinMarketCapResponse};
-use crate::mqtt::{publish_crypto_data_to_mqtt, publish_historical_data_to_mqtt, publish_empty_retained_message};
+use crate::types::{AppState, CoinMarketCapResponse, CmcMappingResponse};
+use crate::mqtt::{publish_crypto_data_to_mqtt, publish_empty_retained_message};
+#[cfg(test)]
+use crate::mqtt::publish_historical_data_to_mqtt;
 use shared::{HistoricalDataPoint, HistoricalDataResult};
 pub async fn fetch_data_periodically(state: web::Data<AppState>) {
     info!("Starting data fetch with interval: {} seconds ({} minutes)", 
@@ -119,6 +121,7 @@ pub async fn clear_mqtt_cache_periodically(state: web::Data<AppState>) {
     }
 }
 
+#[cfg(test)]
 pub async fn publish_initial_priority_data(state: &web::Data<AppState>) {
     // Only fetch data for the most popular cryptocurrencies to avoid rate limits
     let priority_symbols = ["BTC", "ETH"];
@@ -579,6 +582,50 @@ mod tests {
         assert!(priority_symbols.contains(&"ETH"));
         assert!(priority_timeframes.contains(&"24h"));
         assert!(priority_timeframes.contains(&"7d"));
+    }
+}
+
+pub async fn fetch_cmc_mapping(state: web::Data<AppState>) -> Result<(), String> {
+    info!("Fetching CMC cryptocurrency mapping data...");
+    
+    let response = state.client
+        .get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/map")
+        .query(&[("limit", "5000")])
+        .header("X-CMC_PRO_API_KEY", &state.api_key)
+        .header("Accept", "application/json")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to send CMC mapping request: {}", e))?;
+    
+    if response.status().is_success() {
+        let cmc_response: CmcMappingResponse = response
+            .json()
+            .await
+            .map_err(|e| format!("Failed to parse CMC mapping response: {}", e))?;
+        
+        if cmc_response.status.error_code == 0 {
+            let mut mapping = std::collections::HashMap::new();
+            for currency in cmc_response.data {
+                mapping.insert(currency.symbol.to_uppercase(), currency.id);
+            }
+            
+            let count = mapping.len();
+            *state.cmc_mapping.lock().unwrap() = mapping;
+            info!("Successfully loaded {} CMC cryptocurrency mappings", count);
+
+            Ok(())
+        } else {
+            let error_msg = format!("CMC API error: {} (code: {})", 
+                cmc_response.status.error_message.unwrap_or("Unknown error".to_string()),
+                cmc_response.status.error_code
+            );
+            error!("{}", error_msg);
+            Err(error_msg)
+        }
+    } else {
+        let error_msg = format!("CMC mapping request failed with status: {}", response.status());
+        error!("{}", error_msg);
+        Err(error_msg)
     }
 }
 

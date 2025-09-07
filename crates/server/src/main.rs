@@ -6,7 +6,7 @@ use reqwest::Client;
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 use std::collections::HashMap;
-use log::info;
+use log::{info, error};
 
 // Module declarations
 mod types;
@@ -18,9 +18,9 @@ mod data;
 // Import our modules
 use types::AppState;
 use config::ServerConfig;
-use handlers::{get_prices, health_check, get_historical_data};
+use handlers::{get_prices, health_check, get_historical_data, get_cmc_mapping, get_crypto_logo};
 use mqtt::{setup_mqtt_broker, setup_mqtt_request_handling};
-use data::{fetch_data_periodically, clear_mqtt_cache_periodically};
+use data::{fetch_data_periodically, clear_mqtt_cache_periodically, fetch_cmc_mapping};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -58,12 +58,21 @@ async fn main() -> std::io::Result<()> {
         mqtt_client,
         historical_cache: Arc::new(Mutex::new(HashMap::new())),
         update_interval_seconds: config.update_interval_seconds,
+        cmc_mapping: Arc::new(Mutex::new(HashMap::new())),
+        logo_cache: Arc::new(Mutex::new(HashMap::new())),
     });
     
     // Setup MQTT request handling now that AppState is created
     if let Err(e) = setup_mqtt_request_handling(state.clone()).await {
         log::error!("Failed to setup MQTT request handling: {}", e);
         log::warn!("MQTT requests will not be processed");
+    }
+    
+    // Fetch CMC mapping at startup
+    info!("Fetching CMC mapping data at startup...");
+    if let Err(e) = fetch_cmc_mapping(state.clone()).await {
+        error!("Failed to fetch CMC mapping at startup: {}", e);
+        info!("Server will start with empty mapping - mappings can be updated later");
     }
     
     let state_clone = state.clone();
@@ -89,6 +98,8 @@ async fn main() -> std::io::Result<()> {
             .service(get_prices)
             .service(health_check)
             .service(get_historical_data)
+            .service(get_cmc_mapping)
+            .service(get_crypto_logo)
     })
     .bind(("0.0.0.0", 8080))?
     .run()

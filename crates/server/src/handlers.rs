@@ -78,6 +78,98 @@ pub async fn get_historical_data(
     web::Json(result)
 }
 
+#[get("/api/cmc-mapping")]
+pub async fn get_cmc_mapping(data: web::Data<AppState>) -> impl Responder {
+    let mapping = data.cmc_mapping.lock().unwrap();
+    web::Json(mapping.clone())
+}
+
+#[get("/api/logo/{symbol}")]
+pub async fn get_crypto_logo(
+    path: web::Path<String>,
+    data: web::Data<AppState>,
+) -> impl Responder {
+    use actix_web::{HttpResponse, http::header};
+    use std::time::{Duration, SystemTime};
+    
+    let symbol = path.into_inner().to_uppercase();
+    
+    // Check cache first (with 24 hour expiry)
+    {
+        let cache = data.logo_cache.lock().unwrap();
+        if let Some((image_data, cached_time)) = cache.get(&symbol) {
+            if cached_time.elapsed().unwrap_or(Duration::from_secs(u64::MAX)) < Duration::from_secs(24 * 60 * 60) {
+                return HttpResponse::Ok()
+                    .content_type("image/png")
+                    .append_header(header::CacheControl(vec![
+                        header::CacheDirective::Public,
+                        header::CacheDirective::MaxAge(86400), // 24 hours
+                    ]))
+                    .body(image_data.clone());
+            }
+        }
+    }
+    
+    // Get CMC ID for symbol
+    let cmc_id = {
+        let mapping = data.cmc_mapping.lock().unwrap();
+        match mapping.get(&symbol).copied() {
+            Some(id) => id,
+            None => {
+                warn!("No CMC mapping found for symbol: {}", symbol);
+                return HttpResponse::NotFound().json(serde_json::json!({
+                    "error": format!("No logo mapping found for symbol: {}", symbol)
+                }));
+            }
+        }
+    };
+    
+    // Fetch from CoinMarketCap
+    let logo_url = format!("https://s2.coinmarketcap.com/static/img/coins/64x64/{}.png", cmc_id);
+    
+    match data.client.get(&logo_url).send().await {
+        Ok(response) if response.status().is_success() => {
+            match response.bytes().await {
+                Ok(image_data) => {
+                    let image_bytes = image_data.to_vec();
+                    
+                    // Cache the image
+                    {
+                        let mut cache = data.logo_cache.lock().unwrap();
+                        cache.insert(symbol, (image_bytes.clone(), SystemTime::now()));
+                    }
+                    
+                    HttpResponse::Ok()
+                        .content_type("image/png")
+                        .append_header(header::CacheControl(vec![
+                            header::CacheDirective::Public,
+                            header::CacheDirective::MaxAge(86400), // 24 hours
+                        ]))
+                        .body(image_bytes)
+                },
+                Err(e) => {
+                    warn!("Failed to read logo image bytes for {}: {}", symbol, e);
+                    HttpResponse::InternalServerError().json(serde_json::json!({
+                        "error": "Failed to read image data"
+                    }))
+                }
+            }
+        },
+        Ok(response) => {
+            warn!("CMC logo request failed with status {} for symbol: {}", response.status(), symbol);
+            HttpResponse::NotFound().json(serde_json::json!({
+                "error": "Logo not found"
+            }))
+        },
+        Err(e) => {
+            warn!("Failed to fetch logo for symbol {}: {}", symbol, e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "Failed to fetch logo"
+            }))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -119,6 +211,8 @@ mod tests {
             mqtt_client: Arc::new(mqtt_client),
             historical_cache: Arc::new(Mutex::new(HashMap::new())),
             update_interval_seconds: 300,
+            cmc_mapping: Arc::new(Mutex::new(HashMap::new())),
+            logo_cache: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 

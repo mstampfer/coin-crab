@@ -28,11 +28,36 @@ pub struct AppState {
     pub mqtt_client: Arc<AsyncClient>,
     pub historical_cache: Arc<Mutex<HashMap<String, (HistoricalDataResult, SystemTime)>>>,
     pub update_interval_seconds: u64,
+    pub cmc_mapping: Arc<Mutex<HashMap<String, u32>>>,
+    pub logo_cache: Arc<Mutex<HashMap<String, (Vec<u8>, SystemTime)>>>,
 }
 
 #[derive(Deserialize)]
 pub struct HistoricalQuery {
     pub timeframe: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CmcCurrency {
+    pub id: u32,
+    pub name: String,
+    pub symbol: String,
+    pub slug: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CmcMappingResponse {
+    pub status: CmcStatus,
+    pub data: Vec<CmcCurrency>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CmcStatus {
+    pub timestamp: String,
+    pub error_code: u32,
+    pub error_message: Option<String>,
+    pub elapsed: u32,
+    pub credit_count: u32,
 }
 
 #[cfg(test)]
