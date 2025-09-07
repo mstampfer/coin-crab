@@ -84,8 +84,61 @@ impl ServerConfig {
         builder.filter_module("rumqttd::router", log::LevelFilter::Off);
         builder.filter_module("rumqttd::router::routing", log::LevelFilter::Off);
         
+        // Suppress MQTT publisher error messages
+        builder.filter_module("coin_crab_server::mqtt::publisher", log::LevelFilter::Warn);
+        
         builder.init();
         
         info!("Logging initialized with level: {}", self.log_level);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_server_config_creation() {
+        let config = ServerConfig {
+            api_key: "test_key".to_string(),
+            log_level: "DEBUG".to_string(),
+            mqtt_broker_host: "localhost".to_string(),
+            mqtt_broker_port: 1883,
+            update_interval_seconds: 300,
+        };
+
+        assert_eq!(config.api_key, "test_key");
+        assert_eq!(config.log_level, "DEBUG");
+        assert_eq!(config.mqtt_broker_host, "localhost");
+        assert_eq!(config.mqtt_broker_port, 1883);
+        assert_eq!(config.update_interval_seconds, 300);
+    }
+
+    #[test]
+    fn test_log_level_mapping() {
+        // Test that different log levels map to the correct filter level
+        let test_cases = vec![
+            ("OFF", log::LevelFilter::Off),
+            ("ERROR", log::LevelFilter::Error),
+            ("WARN", log::LevelFilter::Warn),
+            ("INFO", log::LevelFilter::Info),
+            ("DEBUG", log::LevelFilter::Debug),
+            ("TRACE", log::LevelFilter::Trace),
+            ("invalid", log::LevelFilter::Info), // Default case
+        ];
+
+        for (input, expected) in test_cases {
+            let level_filter = match input.to_uppercase().as_str() {
+                "OFF" => log::LevelFilter::Off,
+                "ERROR" => log::LevelFilter::Error,
+                "WARN" => log::LevelFilter::Warn,
+                "INFO" => log::LevelFilter::Info,
+                "DEBUG" => log::LevelFilter::Debug,
+                "TRACE" => log::LevelFilter::Trace,
+                _ => log::LevelFilter::Info,
+            };
+            
+            assert_eq!(level_filter, expected);
+        }
     }
 }

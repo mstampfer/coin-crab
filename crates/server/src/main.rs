@@ -22,20 +22,6 @@ use handlers::{get_prices, health_check, get_historical_data};
 use mqtt::{setup_mqtt_broker, setup_mqtt_request_handling};
 use data::{fetch_data_periodically, clear_mqtt_cache_periodically};
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // Load configuration
