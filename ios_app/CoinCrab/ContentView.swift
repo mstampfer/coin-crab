@@ -342,7 +342,7 @@ struct MarketsView: View {
                     } else if cryptoManager.cryptocurrencies.isEmpty && !cryptoManager.isLoading {
                         EmptyStateView()
                     } else {
-                        ModernCryptoListView(cryptocurrencies: cryptoManager.cryptocurrencies)
+                        ModernCryptoListView(cryptocurrencies: cryptoManager.cryptocurrencies, cryptoManager: cryptoManager)
                     }
                 }
             }
@@ -663,12 +663,13 @@ struct CoinListHeaderView: View {
 
 struct ModernCryptoListView: View {
     let cryptocurrencies: [CryptoCurrency]
+    @ObservedObject var cryptoManager: CryptoDataManager
     
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 ForEach(Array(cryptocurrencies.enumerated()), id: \.element.id) { index, crypto in
-                    ModernCryptoCurrencyRowView(cryptocurrency: crypto, rank: index + 1)
+                    ModernCryptoCurrencyRowView(cryptocurrency: crypto, rank: index + 1, cryptoManager: cryptoManager)
                     if index < cryptocurrencies.count - 1 {
                         Divider()
                             .background(Color.gray.opacity(0.2))
@@ -764,6 +765,7 @@ struct AnimatedPriceView: View {
 struct ModernCryptoCurrencyRowView: View {
     let cryptocurrency: CryptoCurrency
     let rank: Int
+    @ObservedObject var cryptoManager: CryptoDataManager
     @State private var showingChart = false
     
     var body: some View {
@@ -823,7 +825,7 @@ struct ModernCryptoCurrencyRowView: View {
         .padding(.vertical, 12)
         .background(Color.clear)
         .sheet(isPresented: $showingChart) {
-            CryptoChartView(cryptocurrency: cryptocurrency)
+            CryptoChartView(initialCryptocurrency: cryptocurrency, cryptoManager: cryptoManager)
         }
     }
     
