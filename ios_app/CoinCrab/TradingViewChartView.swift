@@ -635,7 +635,7 @@ struct TradingViewChartView: UIViewRepresentable {
                                         color: 'rgba(255, 255, 255, 0.3)',
                                         lineWidth: 1,
                                         lineStyle: 2, // Dashed line
-                                        axisLabelVisible: true,
+                                        axisLabelVisible: false, // Hide duplicate label
                                         title: '', // Remove label
                                     });
                                 }

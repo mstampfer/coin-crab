@@ -29,10 +29,10 @@ A professional iOS cryptocurrency tracking app built with Rust and SwiftUI, feat
 - **Optimized UI**: Removed grey bars, smaller fullscreen icons, improved spacing
 
 ### **Real Cryptocurrency Icons**
-- Authentic crypto logos loaded from multiple reliable sources
-- Intelligent fallback system with brand-accurate colors
-- Smart caching for optimal performance
-- Support for 20+ major cryptocurrencies
+- **CoinMarketCap Logo System**: Official cryptocurrency logos fetched from CMC API
+- **Symbol-to-ID Mapping**: Intelligent mapping system for accurate logo retrieval
+- **24-Hour Caching**: Server-side logo caching with automatic expiry management
+- **Professional UI**: Clean interface without app branding distractions
 
 ### **Advanced Market Features**
 - **Market Insights**: AI-powered market analysis prompts
@@ -55,7 +55,7 @@ A professional iOS cryptocurrency tracking app built with Rust and SwiftUI, feat
 - **Backend**: **100% Rust Workspace** - Server, iOS library, and shared code
 - **Charts**: TradingView Lightweight Charts with volume histogram analysis
 - **Communication**: MQTT message broker for real-time updates (rumqttd)
-- **APIs**: CoinMarketCap with volume data (server-side only), multiple icon providers
+- **APIs**: CoinMarketCap with volume data and official logos (server-side only)
 - **Architecture**: Rust workspace with separate deployable crates
 - **Build System**: Xcode + Cargo with workspace support
 
@@ -230,10 +230,9 @@ LOG_LEVEL=INFO                   # Set to OFF to suppress all logs
 - Get your API key from: https://coinmarketcap.com/api/
 
 ### API Configuration
-The app uses multiple cryptocurrency data sources:
-- **CoinMarketCap**: Primary price data
-- **CryptoIcons.org**: Cryptocurrency logos
-- **CoinCap**: Backup price source
+The app uses CoinMarketCap as the primary data source:
+- **CoinMarketCap**: Price data, historical charts, symbol-to-ID mapping, and official logos
+- **Server-side caching**: 24-hour logo caching and intelligent mapping system
 
 ## Architecture
 
@@ -380,13 +379,11 @@ pkill coin-crab-server  # Stop server
 ```
 
 ### Adding New Cryptocurrencies
-Update the symbol mappings in `ios_app/CoinCrab/ContentView.swift`:
+The cryptocurrency logo system automatically handles new coins through the CoinMarketCap mapping system. No manual configuration required - logos are fetched dynamically based on the symbol-to-ID mapping maintained by the server.
 
+For UI customization in `ios_app/CoinCrab/ContentView.swift`:
 ```swift
-// Add to getCoinMarketCapId function
-"NEWCOIN": "coin_id_number"
-
-// Add to brandColors dictionary
+// Add to brandColors dictionary for fallback colors only
 "NEWCOIN": Color.purple
 ```
 
@@ -438,8 +435,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgments
 
-- **CoinMarketCap** for cryptocurrency data
-- **CryptoIcons.org** for cryptocurrency logos
+- **CoinMarketCap** for cryptocurrency data and official logos
+- **TradingView** for professional charting components
 - **Rust Community** for excellent async libraries
 - **Apple** for SwiftUI and iOS development tools
 
