@@ -841,13 +841,34 @@ struct ModernCryptoCurrencyRowView: View {
 class IconCache {
     static let shared = IconCache()
     private var cache: [String: Data] = [:]
+    private var failedSymbols: Set<String> = []
     
     func getIcon(for symbol: String) -> Data? {
-        return cache[symbol.uppercased()]
+        let key = symbol.uppercased()
+        return cache[key]
     }
     
     func setIcon(for symbol: String, data: Data) {
-        cache[symbol.uppercased()] = data
+        let key = symbol.uppercased()
+        cache[key] = data
+        failedSymbols.remove(key)
+        print("IconCache: Cached icon for \(key), cache size: \(cache.count)")
+    }
+    
+    func markFailed(for symbol: String) {
+        let key = symbol.uppercased()
+        failedSymbols.insert(key)
+        print("IconCache: Marked \(key) as failed, failed count: \(failedSymbols.count)")
+    }
+    
+    func hasFailed(for symbol: String) -> Bool {
+        return failedSymbols.contains(symbol.uppercased())
+    }
+    
+    func clearCache() {
+        cache.removeAll()
+        failedSymbols.removeAll()
+        print("IconCache: Cleared all cached data")
     }
 }
 
@@ -876,10 +897,15 @@ struct CryptoIcon: View {
                             .scaleEffect(0.5)
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
                     } else {
-                        Text(symbol.prefix(2))
-                            .font(.system(size: 10, weight: .bold))
+                        Text(symbol)
+                            .font(.system(size: symbol.count > 4 ? 8 : (symbol.count > 3 ? 9 : 11), weight: .bold))
                             .foregroundColor(.white)
+                            .minimumScaleFactor(0.5)
+                            .lineLimit(1)
                     }
+                }
+                .onTapGesture {
+                    print("DEBUG: \(symbol) - isLoading: \(isLoading), imageData: \(imageData?.count ?? 0) bytes, hasFailed: \(IconCache.shared.hasFailed(for: symbol))")
                 }
             }
         }
@@ -896,6 +922,12 @@ struct CryptoIcon: View {
             return
         }
         
+        // If previously failed, skip server request and show fallback
+        if IconCache.shared.hasFailed(for: symbol) {
+            self.isLoading = false
+            return
+        }
+        
         // Load from local server's logo endpoint
         loadIconFromServer()
     }
@@ -903,6 +935,7 @@ struct CryptoIcon: View {
     private func loadIconFromServer() {
         guard let url = URL(string: "http://127.0.0.1:8080/api/logo/\(symbol)") else {
             print("CryptoIcon: Invalid URL for symbol \(symbol)")
+            IconCache.shared.markFailed(for: symbol)
             isLoading = false
             return
         }
@@ -913,6 +946,7 @@ struct CryptoIcon: View {
             DispatchQueue.main.async {
                 if let error = error {
                     print("CryptoIcon: Network error for \(self.symbol): \(error)")
+                    IconCache.shared.markFailed(for: self.symbol)
                     self.isLoading = false
                     return
                 }
@@ -925,13 +959,15 @@ struct CryptoIcon: View {
                         IconCache.shared.setIcon(for: self.symbol, data: data)
                         self.imageData = data
                     } else if httpResponse.statusCode == 404 {
-                        print("CryptoIcon: No logo mapping found for \(self.symbol) - using fallback colored circle")
-                        // Don't cache 404s, just fall back to colored circle
+                        print("CryptoIcon: No logo mapping found for \(self.symbol) - marking as failed and using fallback colored circle")
+                        IconCache.shared.markFailed(for: self.symbol)
                     } else {
                         print("CryptoIcon: Failed to load icon for \(self.symbol) - status: \(httpResponse.statusCode), data size: \(data?.count ?? 0)")
+                        IconCache.shared.markFailed(for: self.symbol)
                     }
                 } else {
                     print("CryptoIcon: Invalid HTTP response for \(self.symbol)")
+                    IconCache.shared.markFailed(for: self.symbol)
                 }
                 
                 self.isLoading = false
@@ -962,7 +998,16 @@ struct CryptoIcon: View {
             "UNI": Color.pink,
             "LTC": Color.gray,
             "ICP": Color.orange,
-            "LEO": Color.orange
+            "LEO": Color.orange,
+            "ONDO": Color.blue,
+            "WLD": Color.gray,
+            "ARB": Color.blue,
+            "POL": Color.purple,
+            "PI": Color.orange,
+            "USD1": Color.green,
+            "IP": Color.purple,
+            "KAS": Color.cyan,
+            "ATOM": Color.purple
         ]
         
         return brandColors[symbol.uppercased()] ?? {
