@@ -124,6 +124,8 @@ mod tests {
             mqtt_client: Arc::new(mqtt_client),
             historical_cache: Arc::new(Mutex::new(HashMap::new())),
             update_interval_seconds: 300,
+            cmc_mapping: Arc::new(Mutex::new(HashMap::new())),
+            logo_cache: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
