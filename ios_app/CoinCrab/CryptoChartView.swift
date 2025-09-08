@@ -3,13 +3,19 @@ import Foundation
 import WebKit
 
 struct CryptoChartView: View {
-    let cryptocurrency: CryptoCurrency
+    let initialCryptocurrency: CryptoCurrency
+    @ObservedObject var cryptoManager: CryptoDataManager
     @State private var selectedTimeframe: TimeFrame = .day
     @State private var historicalData: [ChartDataPoint] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showingFullscreen = false
     @Environment(\.presentationMode) var presentationMode
+    
+    // Computed property to get the latest cryptocurrency data
+    var cryptocurrency: CryptoCurrency {
+        cryptoManager.cryptocurrencies.first(where: { $0.symbol == initialCryptocurrency.symbol }) ?? initialCryptocurrency
+    }
     
     enum TimeFrame: String, CaseIterable {
         case hour = "1H"
@@ -75,7 +81,7 @@ struct CryptoChartView: View {
                 .padding(.bottom, 8)
                 
                 // Header with crypto info
-                CryptoHeaderView(cryptocurrency: cryptocurrency)
+                CryptoHeaderView(cryptocurrency: cryptocurrency, cryptoManager: cryptoManager)
                 
                 // Time frame selector
                 TimeFrameSelectorView(selectedTimeframe: $selectedTimeframe)
@@ -138,7 +144,8 @@ struct CryptoChartView: View {
                 isPositive: cryptocurrency.quote.USD.percent_change_24h >= 0,
                 timeframe: selectedTimeframe.cmcTimeframe,
                 cryptocurrency: cryptocurrency,
-                selectedTimeframe: selectedTimeframe
+                selectedTimeframe: selectedTimeframe,
+                cryptoManager: cryptoManager
             )
         }
     }
@@ -200,9 +207,6 @@ struct CryptoChartView: View {
             }
         }
     }
-    
-    
-    
 }
 
 struct ChartDataPoint {
@@ -233,6 +237,12 @@ struct HistoricalDataResult: Codable {
 
 struct CryptoHeaderView: View {
     let cryptocurrency: CryptoCurrency
+    @ObservedObject var cryptoManager: CryptoDataManager
+    
+    // Get the latest cryptocurrency data from the manager
+    var currentCrypto: CryptoCurrency {
+        cryptoManager.cryptocurrencies.first(where: { $0.symbol == cryptocurrency.symbol }) ?? cryptocurrency
+    }
     
     var body: some View {
         VStack(spacing: 12) {
@@ -253,8 +263,8 @@ struct CryptoHeaderView: View {
                     
                     HStack(spacing: 4) {
                         AnimatedPriceView(
-                            price: cryptocurrency.quote.USD.price,
-                            cryptoId: cryptocurrency.symbol
+                            price: currentCrypto.quote.USD.price,
+                            cryptoId: currentCrypto.symbol
                         )
                         .font(.system(size: 28, weight: .bold))
                     }
@@ -447,17 +457,24 @@ struct FullscreenChartView: View {
     let isPositive: Bool
     let timeframe: String
     let cryptocurrency: CryptoCurrency
+    @ObservedObject var cryptoManager: CryptoDataManager
     @State private var selectedTimeframe: CryptoChartView.TimeFrame
     @State private var historicalData: [ChartDataPoint]
     @State private var isLoading = false
     @State private var errorMessage: String?
     @Environment(\.dismiss) private var dismiss
     
-    init(data: [ChartDataPoint], isPositive: Bool, timeframe: String, cryptocurrency: CryptoCurrency, selectedTimeframe: CryptoChartView.TimeFrame) {
+    // Get the latest cryptocurrency data from the manager
+    var currentCrypto: CryptoCurrency {
+        cryptoManager.cryptocurrencies.first(where: { $0.symbol == cryptocurrency.symbol }) ?? cryptocurrency
+    }
+    
+    init(data: [ChartDataPoint], isPositive: Bool, timeframe: String, cryptocurrency: CryptoCurrency, selectedTimeframe: CryptoChartView.TimeFrame, cryptoManager: CryptoDataManager) {
         self.data = data
         self.isPositive = isPositive
         self.timeframe = timeframe
         self.cryptocurrency = cryptocurrency
+        self.cryptoManager = cryptoManager
         self._selectedTimeframe = State(initialValue: selectedTimeframe)
         self._historicalData = State(initialValue: data)
     }
@@ -488,8 +505,8 @@ struct FullscreenChartView: View {
                             
                             HStack(spacing: 12) {
                                 AnimatedPriceView(
-                                    price: cryptocurrency.quote.USD.price,
-                                    cryptoId: cryptocurrency.symbol
+                                    price: currentCrypto.quote.USD.price,
+                                    cryptoId: currentCrypto.symbol
                                 )
                                 .font(.title)
                                 .fontWeight(.semibold)

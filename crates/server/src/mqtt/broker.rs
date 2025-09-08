@@ -4,7 +4,7 @@ use std::path::Path;
 use std::thread;
 use std::time::Duration;
 use std::sync::Arc;
-use log::{info, warn, error, debug};
+use log::{info, error, debug};
 
 pub async fn setup_mqtt_broker(broker_host: &str, broker_port: u16) -> Result<Arc<AsyncClient>, String> {
     info!("Starting embedded MQTT broker on {}:{}", broker_host, broker_port);

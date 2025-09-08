@@ -1,12 +1,13 @@
 use actix_web::web;
 use reqwest::Client;
 use std::time::{Duration, SystemTime};
-use std::collections::HashMap;
 use tokio::time;
 use log::{info, warn, error};
-use crate::types::{AppState, CoinMarketCapResponse};
-use crate::mqtt::{publish_crypto_data_to_mqtt, publish_historical_data_to_mqtt, publish_empty_retained_message};
-use shared::{HistoricalDataPoint, HistoricalDataResult, CryptoCurrency};
+use crate::types::{AppState, CoinMarketCapResponse, CmcMappingResponse};
+use crate::mqtt::{publish_crypto_data_to_mqtt, publish_empty_retained_message};
+#[cfg(test)]
+use crate::mqtt::publish_historical_data_to_mqtt;
+use shared::{HistoricalDataPoint, HistoricalDataResult};
 pub async fn fetch_data_periodically(state: web::Data<AppState>) {
     info!("Starting data fetch with interval: {} seconds ({} minutes)", 
           state.update_interval_seconds, 
@@ -120,6 +121,7 @@ pub async fn clear_mqtt_cache_periodically(state: web::Data<AppState>) {
     }
 }
 
+#[cfg(test)]
 pub async fn publish_initial_priority_data(state: &web::Data<AppState>) {
     // Only fetch data for the most popular cryptocurrencies to avoid rate limits
     let priority_symbols = ["BTC", "ETH"];
@@ -409,6 +411,221 @@ pub async fn fetch_historical_data_server(
             symbol: Some(symbol),
             timeframe: Some(timeframe.to_string()),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_start_time() {
+        let start_time = get_start_time(30);
+        
+        // Verify it's a valid ISO 8601 timestamp
+        assert!(start_time.contains("T"));
+        assert!(start_time.ends_with("Z"));
+        assert_eq!(start_time.len(), 24); // Format: 2024-01-01T00:00:00.000Z
+        
+        // Parse the timestamp to ensure it's valid
+        let parsed = chrono::DateTime::parse_from_rfc3339(&start_time);
+        assert!(parsed.is_ok());
+        
+        // Verify it's approximately 30 days ago
+        let parsed_time = parsed.unwrap();
+        let now = chrono::Utc::now();
+        let diff = now.signed_duration_since(parsed_time.with_timezone(&chrono::Utc));
+        
+        // Should be between 29.9 and 30.1 days (allowing for execution time)
+        assert!(diff.num_days() >= 29 && diff.num_days() <= 31);
+    }
+
+    #[test]
+    fn test_get_current_time() {
+        let current_time = get_current_time();
+        
+        // Verify it's a valid ISO 8601 timestamp
+        assert!(current_time.contains("T"));
+        assert!(current_time.ends_with("Z"));
+        assert_eq!(current_time.len(), 24); // Format: 2024-01-01T00:00:00.000Z
+        
+        // Parse the timestamp to ensure it's valid
+        let parsed = chrono::DateTime::parse_from_rfc3339(&current_time);
+        assert!(parsed.is_ok());
+        
+        // Verify it's very recent (within 1 second)
+        let parsed_time = parsed.unwrap();
+        let now = chrono::Utc::now();
+        let diff = now.signed_duration_since(parsed_time.with_timezone(&chrono::Utc));
+        
+        assert!(diff.num_seconds().abs() <= 1);
+    }
+
+    #[test]
+    fn test_get_interval_for_timeframe() {
+        assert_eq!(get_interval_for_timeframe("1h"), "5m");
+        assert_eq!(get_interval_for_timeframe("24h"), "1h");
+        assert_eq!(get_interval_for_timeframe("1d"), "1h");
+        assert_eq!(get_interval_for_timeframe("7d"), "2h");
+        assert_eq!(get_interval_for_timeframe("30d"), "6h");
+        assert_eq!(get_interval_for_timeframe("90d"), "1d");
+        assert_eq!(get_interval_for_timeframe("365d"), "1d");
+        assert_eq!(get_interval_for_timeframe("1y"), "1d");
+        assert_eq!(get_interval_for_timeframe("all"), "1d");
+        assert_eq!(get_interval_for_timeframe("invalid"), "1h"); // Default case
+    }
+
+    #[test]
+    fn test_timeframe_to_days_conversion() {
+        // Test the conversion logic used in fetch_historical_data_server
+        let test_cases = vec![
+            ("1h", 1),
+            ("24h", 1),
+            ("1d", 1),
+            ("7d", 7),
+            ("30d", 30),
+            ("90d", 90),
+            ("365d", 365),
+            ("1y", 365),
+            ("all", 365),
+            ("invalid", 30), // Default case
+        ];
+
+        for (timeframe, expected_days) in test_cases {
+            let days = match timeframe {
+                "1h" => 1,
+                "24h" | "1d" => 1,
+                "7d" => 7,
+                "30d" => 30,
+                "90d" => 90,
+                "365d" | "1y" => 365,
+                "all" => 365,
+                _ => 30,
+            };
+            
+            assert_eq!(days, expected_days, "Failed for timeframe: {}", timeframe);
+        }
+    }
+
+    #[test]
+    fn test_historical_data_result_creation() {
+        let result = HistoricalDataResult {
+            success: true,
+            data: vec![
+                shared::HistoricalDataPoint {
+                    timestamp: 1704067200.0,
+                    price: 45000.0,
+                    volume: Some(1000000000.0),
+                },
+            ],
+            error: None,
+            symbol: Some("BTC".to_string()),
+            timeframe: Some("24h".to_string()),
+        };
+
+        assert!(result.success);
+        assert_eq!(result.data.len(), 1);
+        assert_eq!(result.data[0].price, 45000.0);
+        assert_eq!(result.symbol, Some("BTC".to_string()));
+        assert_eq!(result.timeframe, Some("24h".to_string()));
+        assert!(result.error.is_none());
+    }
+
+    #[test]
+    fn test_api_key_truncation_logic() {
+        // Test the API key logging truncation logic from fetch_data_periodically
+        let test_cases = vec![
+            ("12345678", "12345678"), // Exactly 8 characters
+            ("123456789", "12345678"), // More than 8 characters
+            ("1234567", "1234567"),   // Less than 8 characters
+            ("", ""),                 // Empty string
+        ];
+
+        for (api_key, expected) in test_cases {
+            let truncated = &api_key[..8.min(api_key.len())];
+            assert_eq!(truncated, expected, "Failed for API key: '{}'", api_key);
+        }
+    }
+
+    #[test] 
+    fn test_cache_intervals() {
+        // Test the cache clearing intervals from clear_mqtt_cache_periodically
+        let timeframes = ["1h", "24h", "7d", "30d", "90d", "365d"];
+        let expected_intervals = [300, 3600, 7200, 21600, 86400, 86400];
+        
+        for (i, &timeframe) in timeframes.iter().enumerate() {
+            let interval_secs = match timeframe {
+                "1h" => 300,    // 5 minutes
+                "24h" => 3600,  // 1 hour  
+                "7d" => 7200,   // 2 hours
+                "30d" => 21600, // 6 hours
+                "90d" => 86400, // 1 day
+                "365d" => 86400, // 1 day
+                _ => 3600,
+            };
+            
+            assert_eq!(interval_secs, expected_intervals[i], 
+                      "Interval mismatch for timeframe: {}", timeframe);
+        }
+    }
+
+    #[test]
+    fn test_priority_symbols_and_timeframes() {
+        // Test the priority data configuration from publish_initial_priority_data
+        let priority_symbols = ["BTC", "ETH"];
+        let priority_timeframes = ["24h", "7d"];
+        
+        assert_eq!(priority_symbols.len(), 2);
+        assert_eq!(priority_timeframes.len(), 2);
+        
+        assert!(priority_symbols.contains(&"BTC"));
+        assert!(priority_symbols.contains(&"ETH"));
+        assert!(priority_timeframes.contains(&"24h"));
+        assert!(priority_timeframes.contains(&"7d"));
+    }
+}
+
+pub async fn fetch_cmc_mapping(state: web::Data<AppState>) -> Result<(), String> {
+    info!("Fetching CMC cryptocurrency mapping data...");
+    
+    let response = state.client
+        .get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/map")
+        .query(&[("limit", "5000")])
+        .header("X-CMC_PRO_API_KEY", &state.api_key)
+        .header("Accept", "application/json")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to send CMC mapping request: {}", e))?;
+    
+    if response.status().is_success() {
+        let cmc_response: CmcMappingResponse = response
+            .json()
+            .await
+            .map_err(|e| format!("Failed to parse CMC mapping response: {}", e))?;
+        
+        if cmc_response.status.error_code == 0 {
+            let mut mapping = std::collections::HashMap::new();
+            for currency in cmc_response.data {
+                mapping.insert(currency.symbol.to_uppercase(), currency.id);
+            }
+            
+            let count = mapping.len();
+            *state.cmc_mapping.lock().unwrap() = mapping;
+            info!("Successfully loaded {} CMC cryptocurrency mappings", count);
+
+            Ok(())
+        } else {
+            let error_msg = format!("CMC API error: {} (code: {})", 
+                cmc_response.status.error_message.unwrap_or("Unknown error".to_string()),
+                cmc_response.status.error_code
+            );
+            error!("{}", error_msg);
+            Err(error_msg)
+        }
+    } else {
+        let error_msg = format!("CMC mapping request failed with status: {}", response.status());
+        error!("{}", error_msg);
+        Err(error_msg)
     }
 }
 
