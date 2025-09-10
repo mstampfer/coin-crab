@@ -872,7 +872,13 @@ class ClientConfig {
                 // Parse KEY=VALUE pairs
                 if let equalsIndex = trimmed.firstIndex(of: "=") {
                     let key = String(trimmed[..<equalsIndex]).trimmingCharacters(in: .whitespaces)
-                    let value = String(trimmed[trimmed.index(after: equalsIndex)...]).trimmingCharacters(in: .whitespaces)
+                    var value = String(trimmed[trimmed.index(after: equalsIndex)...]).trimmingCharacters(in: .whitespaces)
+                    
+                    // Handle inline comments by stopping at first #
+                    if let commentIndex = value.firstIndex(of: "#") {
+                        value = String(value[..<commentIndex]).trimmingCharacters(in: .whitespaces)
+                    }
+                    
                     config[key] = value
                     print("ClientConfig: Loaded \(key) = \(value)")
                 }
