@@ -8,6 +8,7 @@ A professional iOS cryptocurrency tracking app built with Rust and SwiftUI, feat
 [![Swift](https://img.shields.io/badge/Swift-5.9-orange.svg)](https://swift.org/)
 [![iOS](https://img.shields.io/badge/iOS-17.0+-blue.svg)](https://developer.apple.com/ios/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Discord](https://img.shields.io/badge/discord-Join%20Chat-7289da?logo=discord&logoColor=white)](https://discord.gg/qqpcR5J3)
 
 </div>
 
@@ -356,11 +357,11 @@ git push origin main
 ```
 
 **CI/CD Pipeline:**
-- ✅ **Automated Testing**: Runs all Rust server and shared crate tests
-- ✅ **Build Verification**: Ensures release build succeeds  
-- ✅ **AWS EC2 Deployment**: Deploys to production server (100.26.107.175)
-- ✅ **Health Checks**: Verifies MQTT broker is running on port 1883
-- ✅ **Zero Downtime**: Graceful server restart with process management
+- **Automated Testing**: Runs all Rust server and shared crate tests
+- **Build Verification**: Ensures release build succeeds  
+- **AWS EC2 Deployment**: Deploys to production server (100.26.107.175)
+- **Health Checks**: Verifies MQTT broker is running on port 1883
+- **Zero Downtime**: Graceful server restart with process management
 
 **Server Management:**
 ```bash
