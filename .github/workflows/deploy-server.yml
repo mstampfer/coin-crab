@@ -1,15 +1,18 @@
 name: Deploy Server to AWS EC2
 
+# 🛡️ BRANCH PROTECTION GUARDRAIL #1: Trigger Restriction
+# This workflow triggers on pushes to 'main' and 'uat' branches
+# main branch deploys to prod folder, uat branch deploys to uat folder
 on:
   push:
-    branches: [ main ]
+    branches: [ main, uat ]  # ⚠️ DEPLOYMENT SAFETY: Only main and uat branches trigger deployment
     paths:
       - 'crates/server/**'
       - 'crates/shared/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
   pull_request:
-    branches: [ main ]
+    branches: [ main, uat ]
     paths:
       - 'crates/server/**'
       - 'crates/shared/**'
@@ -91,7 +94,10 @@ jobs:
     name: Deploy to AWS EC2
     runs-on: ubuntu-latest
     needs: test
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    # 🛡️ BRANCH PROTECTION GUARDRAIL #2: Runtime Branch Verification
+    # Double-safety check: Even if workflow somehow triggers, deployment only runs from main or uat branches
+    # This prevents accidental deployment from dev or other branches if they somehow trigger the workflow
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/uat') && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')  # ⚠️ DEPLOYMENT SAFETY: Runtime branch verification
     
     steps:
     - name: Checkout code
@@ -110,52 +116,66 @@ jobs:
         chmod 600 ~/.ssh/aws-freetier.pem
         ssh-keyscan -H 100.26.107.175 >> ~/.ssh/known_hosts
         
+    - name: Set deployment environment
+      run: |
+        if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+          echo "DEPLOY_ENV=prod" >> $GITHUB_ENV
+          echo "MQTT_PORT=1883" >> $GITHUB_ENV
+          echo "HTTP_PORT=8080" >> $GITHUB_ENV
+        elif [ "${{ github.ref }}" = "refs/heads/uat" ]; then
+          echo "DEPLOY_ENV=uat" >> $GITHUB_ENV
+          echo "MQTT_PORT=1882" >> $GITHUB_ENV
+          echo "HTTP_PORT=8079" >> $GITHUB_ENV
+        fi
+        echo "Deploying to environment: $DEPLOY_ENV"
+        
     - name: Copy server files to EC2
       run: |
         # Create directory on EC2
-        ssh -i ~/.ssh/aws-freetier.pem ec2-user@100.26.107.175 "mkdir -p coin_crab_server/prod"
+        ssh -i ~/.ssh/aws-freetier.pem ec2-user@100.26.107.175 "mkdir -p coin_crab_server/$DEPLOY_ENV"
         
         # Copy binary
-        scp -i ~/.ssh/aws-freetier.pem ./artifacts/coin-crab-server ec2-user@100.26.107.175:~/coin_crab_server/prod/
+        scp -i ~/.ssh/aws-freetier.pem ./artifacts/coin-crab-server ec2-user@100.26.107.175:~/coin_crab_server/$DEPLOY_ENV/
         
         # Copy configuration files
-        scp -i ~/.ssh/aws-freetier.pem crates/server/.env.server ec2-user@100.26.107.175:~/coin_crab_server/prod/ || echo "No .env.server file found - you'll need to create it manually on the server"
-        scp -i ~/.ssh/aws-freetier.pem crates/server/rumqttd.toml ec2-user@100.26.107.175:~/coin_crab_server/prod/
+        scp -i ~/.ssh/aws-freetier.pem crates/server/.env.server ec2-user@100.26.107.175:~/coin_crab_server/$DEPLOY_ENV/ || echo "No .env.server file found - you'll need to create it manually on the server"
+        scp -i ~/.ssh/aws-freetier.pem crates/server/rumqttd.toml ec2-user@100.26.107.175:~/coin_crab_server/$DEPLOY_ENV/
         
     - name: Deploy and restart server
       run: |
-        ssh -i ~/.ssh/aws-freetier.pem ec2-user@100.26.107.175 << 'EOF'
-          cd coin_crab_server/prod
+        ssh -i ~/.ssh/aws-freetier.pem ec2-user@100.26.107.175 << EOF
+          cd coin_crab_server/$DEPLOY_ENV
           
           # Debug: Check system architecture and binary format
-          echo "🔍 EC2 System Info:"
+          echo "🔍 EC2 System Info ($DEPLOY_ENV environment):"
           uname -m
           file coin-crab-server
           
           # Make binary executable
           chmod +x coin-crab-server
           
-          # Stop existing server if running
-          pkill coin-crab-server || echo "No existing server process found"
-          
-          # Wait a moment for graceful shutdown
-          sleep 2
+          # Stop existing server for this environment if running
+          if [ -f server.pid ] && ps -p \$(cat server.pid) > /dev/null 2>&1; then
+            echo "Stopping existing $DEPLOY_ENV server with PID \$(cat server.pid)"
+            kill \$(cat server.pid) || echo "Failed to stop server gracefully"
+            sleep 3
+          fi
           
           # Start server in background with nohup
           # Redirect output to log file
           nohup ./coin-crab-server > server.log 2>&1 &
           
           # Save PID for future management
-          echo $! > server.pid
+          echo \$! > server.pid
           
           # Wait a moment and check if server started
           sleep 3
-          if ps -p $(cat server.pid) > /dev/null 2>&1; then
-            echo "✅ Server started successfully with PID $(cat server.pid)"
+          if ps -p \$(cat server.pid) > /dev/null 2>&1; then
+            echo "✅ $DEPLOY_ENV server started successfully with PID \$(cat server.pid)"
             echo "📊 Server status:"
-            ps -p $(cat server.pid) -o pid,ppid,cmd
+            ps -p \$(cat server.pid) -o pid,ppid,cmd
           else
-            echo "❌ Server failed to start"
+            echo "❌ $DEPLOY_ENV server failed to start"
             echo "📋 Last 20 lines of server log:"
             tail -20 server.log
             exit 1
@@ -164,24 +184,31 @@ jobs:
         
     - name: Verify deployment
       run: |
-        ssh -i ~/.ssh/aws-freetier.pem ec2-user@100.26.107.175 << 'EOF'
-          cd coin_crab_server/prod
-          echo "🔍 Checking server status..."
-          if [ -f server.pid ] && ps -p $(cat server.pid) > /dev/null 2>&1; then
-            echo "✅ Server is running with PID $(cat server.pid)"
+        ssh -i ~/.ssh/aws-freetier.pem ec2-user@100.26.107.175 << EOF
+          cd coin_crab_server/$DEPLOY_ENV
+          echo "🔍 Checking $DEPLOY_ENV server status..."
+          if [ -f server.pid ] && ps -p \$(cat server.pid) > /dev/null 2>&1; then
+            echo "✅ $DEPLOY_ENV server is running with PID \$(cat server.pid)"
             
             # Check if MQTT port is listening
-            if netstat -tuln | grep -q ":1883 "; then
-              echo "✅ MQTT broker is listening on port 1883"
+            if netstat -tuln | grep -q ":$MQTT_PORT "; then
+              echo "✅ MQTT broker is listening on port $MQTT_PORT"
             else
-              echo "⚠️  MQTT broker may not be listening on port 1883"
+              echo "⚠️  MQTT broker may not be listening on port $MQTT_PORT"
+            fi
+            
+            # Check if HTTP port is listening
+            if netstat -tuln | grep -q ":$HTTP_PORT "; then
+              echo "✅ HTTP API is listening on port $HTTP_PORT"
+            else
+              echo "⚠️  HTTP API may not be listening on port $HTTP_PORT"
             fi
             
             # Show recent log entries
-            echo "📋 Recent server logs:"
+            echo "📋 Recent $DEPLOY_ENV server logs:"
             tail -10 server.log
           else
-            echo "❌ Server is not running"
+            echo "❌ $DEPLOY_ENV server is not running"
             echo "📋 Server log:"
             cat server.log
             exit 1
@@ -200,7 +227,9 @@ jobs:
       run: |
         echo "🎉 Deployment successful!"
         echo "🚀 Server deployed to AWS EC2: 100.26.107.175"
-        echo "📡 MQTT broker should be available at: 100.26.107.175:1883"
+        echo "📁 Environment: ${{ github.ref == 'refs/heads/main' && 'production (prod folder)' || 'UAT (uat folder)' }}"
+        echo "📡 MQTT broker available at: 100.26.107.175:${{ github.ref == 'refs/heads/main' && '1883' || '1882' }}"
+        echo "🌐 HTTP API available at: 100.26.107.175:${{ github.ref == 'refs/heads/main' && '8080' || '8079' }}"
         
     - name: Deployment Failed
       if: needs.deploy.result == 'failure'
