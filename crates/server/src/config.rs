@@ -6,6 +6,7 @@ pub struct ServerConfig {
     pub log_level: String,
     pub mqtt_broker_host: String,
     pub mqtt_broker_port: u16,
+    pub http_icon_port: u16,
     pub update_interval_seconds: u64,
 }
 
@@ -47,6 +48,13 @@ impl ServerConfig {
                 1883
             });
 
+        let http_icon_port = std::env::var("HTTP_ICON_PORT")
+            .and_then(|s| s.parse().map_err(|_| std::env::VarError::NotPresent))
+            .unwrap_or_else(|_| {
+                warn!("HTTP_ICON_PORT not set in .env file, using default (8080)");
+                8080
+            });
+
         let update_interval_seconds = std::env::var("UPDATE_INTERVAL_SECONDS")
             .and_then(|s| s.parse().map_err(|_| std::env::VarError::NotPresent))
             .unwrap_or_else(|_| {
@@ -59,6 +67,7 @@ impl ServerConfig {
             log_level,
             mqtt_broker_host,
             mqtt_broker_port,
+            http_icon_port,
             update_interval_seconds,
         })
     }
@@ -104,6 +113,7 @@ mod tests {
             log_level: "DEBUG".to_string(),
             mqtt_broker_host: "localhost".to_string(),
             mqtt_broker_port: 1883,
+            http_icon_port: 8080,
             update_interval_seconds: 300,
         };
 
@@ -111,6 +121,7 @@ mod tests {
         assert_eq!(config.log_level, "DEBUG");
         assert_eq!(config.mqtt_broker_host, "localhost");
         assert_eq!(config.mqtt_broker_port, 1883);
+        assert_eq!(config.http_icon_port, 8080);
         assert_eq!(config.update_interval_seconds, 300);
     }
 

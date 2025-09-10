@@ -1,8 +1,11 @@
 name: Deploy Server to AWS EC2
 
+# 🛡️ BRANCH PROTECTION GUARDRAIL #1: Trigger Restriction
+# This workflow ONLY triggers on pushes to 'main' branch
+# Pushes to dev, uat, or any other branches are completely ignored
 on:
   push:
-    branches: [ main ]
+    branches: [ main ]  # ⚠️ PRODUCTION SAFETY: Only main branch triggers deployment
     paths:
       - 'crates/server/**'
       - 'crates/shared/**'
@@ -91,7 +94,10 @@ jobs:
     name: Deploy to AWS EC2
     runs-on: ubuntu-latest
     needs: test
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    # 🛡️ BRANCH PROTECTION GUARDRAIL #2: Runtime Branch Verification
+    # Double-safety check: Even if workflow somehow triggers, deployment only runs from main branch
+    # This prevents accidental deployment from dev/uat branches if they somehow trigger the workflow
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')  # ⚠️ PRODUCTION SAFETY: Runtime branch verification
     
     steps:
     - name: Checkout code

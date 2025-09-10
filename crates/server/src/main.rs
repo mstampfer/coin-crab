@@ -86,7 +86,7 @@ async fn main() -> std::io::Result<()> {
         clear_mqtt_cache_periodically(state_clone_hist).await;
     });
     
-    info!("Starting crypto market data server on http://127.0.0.1:8080");
+    info!("Starting crypto market data server on http://127.0.0.1:{}", config.http_icon_port);
     info!("MQTT broker listening on {}:{}", config.mqtt_broker_host, config.mqtt_broker_port);
     info!("MQTT broker console on 127.0.0.1:3030");
     info!("Ready to accept connections...");
@@ -101,7 +101,7 @@ async fn main() -> std::io::Result<()> {
             .service(get_cmc_mapping)
             .service(get_crypto_logo)
     })
-    .bind(("0.0.0.0", 8080))?
+    .bind(("0.0.0.0", config.http_icon_port))?
     .run()
     .await
 }

@@ -837,6 +837,73 @@ struct ModernCryptoCurrencyRowView: View {
     }
 }
 
+// Client configuration reader for .env.client file
+class ClientConfig {
+    static let shared = ClientConfig()
+    
+    private var config: [String: String] = [:]
+    
+    init() {
+        loadConfig()
+    }
+    
+    private func loadConfig() {
+        // Look for .env.client in the main bundle
+        guard let path = Bundle.main.path(forResource: ".env", ofType: "client") else {
+            print("ClientConfig: .env.client not found in bundle, using defaults")
+            // Set defaults if file not found
+            config["MQTT_BROKER_HOST"] = "127.0.0.1"
+            config["HTTP_ICON_PORT"] = "8080"
+            return
+        }
+        
+        do {
+            let contents = try String(contentsOfFile: path, encoding: .utf8)
+            let lines = contents.components(separatedBy: .newlines)
+            
+            for line in lines {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                
+                // Skip empty lines and comments
+                if trimmed.isEmpty || trimmed.hasPrefix("#") {
+                    continue
+                }
+                
+                // Parse KEY=VALUE pairs
+                if let equalsIndex = trimmed.firstIndex(of: "=") {
+                    let key = String(trimmed[..<equalsIndex]).trimmingCharacters(in: .whitespaces)
+                    let value = String(trimmed[trimmed.index(after: equalsIndex)...]).trimmingCharacters(in: .whitespaces)
+                    config[key] = value
+                    print("ClientConfig: Loaded \(key) = \(value)")
+                }
+            }
+        } catch {
+            print("ClientConfig: Error reading .env.client: \(error)")
+            // Set defaults on error
+            config["MQTT_BROKER_HOST"] = "127.0.0.1"
+            config["HTTP_ICON_PORT"] = "8080"
+        }
+    }
+    
+    var serverHost: String {
+        return config["MQTT_BROKER_HOST"] ?? "127.0.0.1"
+    }
+    
+    var serverPort: Int {
+        if let portStr = config["MQTT_BROKER_PORT"], let port = Int(portStr) {
+            return port
+        }
+        return 1883
+    }
+    
+    var httpIconPort: Int {
+        if let portStr = config["HTTP_ICON_PORT"], let port = Int(portStr) {
+            return port
+        }
+        return 8080
+    }
+}
+
 // Simple icon cache to avoid repeated downloads
 class IconCache {
     static let shared = IconCache()
@@ -933,7 +1000,9 @@ struct CryptoIcon: View {
     }
     
     private func loadIconFromServer() {
-        guard let url = URL(string: "http://127.0.0.1:8080/api/logo/\(symbol)") else {
+        let serverHost = ClientConfig.shared.serverHost
+        let iconPort = ClientConfig.shared.httpIconPort
+        guard let url = URL(string: "http://\(serverHost):\(iconPort)/api/logo/\(symbol)") else {
             print("CryptoIcon: Invalid URL for symbol \(symbol)")
             IconCache.shared.markFailed(for: symbol)
             isLoading = false
