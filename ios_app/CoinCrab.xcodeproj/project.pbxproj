@@ -328,13 +328,14 @@
 					"$(PROJECT_DIR)/../target/universal/release",
 				);
 				MARKETING_VERSION = 1.0;
-				OTHER_LDFLAGS = "-lrust_ios_lib";
+				"OTHER_LDFLAGS[sdk=iphonesimulator*]" = "-lrust_ios_lib";
+				"OTHER_LDFLAGS[sdk=iphoneos*]" = "-lrust_ios_lib_device";
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.CoinCrab;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "CoinCrab/CoinCrab-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -363,13 +364,14 @@
 					"$(PROJECT_DIR)/../target/universal/release",
 				);
 				MARKETING_VERSION = 1.0;
-				OTHER_LDFLAGS = "-lrust_ios_lib";
+				"OTHER_LDFLAGS[sdk=iphonesimulator*]" = "-lrust_ios_lib";
+				"OTHER_LDFLAGS[sdk=iphoneos*]" = "-lrust_ios_lib_device";
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.CoinCrab;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "CoinCrab/CoinCrab-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
