@@ -2,6 +2,7 @@
 crates/server/.env.server
 crates/server/.env.server*
 .idea/
+nginx/ssl/
 /target
 /ios_app/RustHelloApp.xcodeproj
 /.DS_Store
