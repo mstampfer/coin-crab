@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
 use rumqttc::Publish;
 use log::info;
 
@@ -11,6 +12,8 @@ pub struct MessageHandler {
     latest_prices: Arc<Mutex<Option<Vec<CryptoCurrency>>>>,
     historical_data: Arc<Mutex<HashMap<String, HistoricalDataResult>>>,
     price_update_callback: Arc<Mutex<Option<PriceUpdateCallback>>>,
+    last_update_time: Arc<Mutex<Option<Instant>>>,
+    debounce_duration: Duration,
 }
 
 impl MessageHandler {
@@ -23,6 +26,8 @@ impl MessageHandler {
             latest_prices,
             historical_data,
             price_update_callback,
+            last_update_time: Arc::new(Mutex::new(None)),
+            debounce_duration: Duration::from_millis(500), // Debounce rapid updates within 500ms
         }
     }
     
@@ -55,16 +60,40 @@ impl MessageHandler {
                         crypto_data[0].quote.usd.price
                     ));
                 }
-                *self.latest_prices.lock().unwrap() = Some(crypto_data.clone());
-                debug_log(&format!("MQTT: *** CACHED {} CRYPTOCURRENCIES ***", crypto_data.len()));
-                info!("MQTT: Updated latest prices from broker");
                 
-                // Trigger callback to notify iOS of price update
-                if let Some(callback) = *self.price_update_callback.lock().unwrap() {
-                    debug_log("MQTT: Triggering iOS callback for price update");
-                    callback(std::ptr::null());
+                // Check if we should debounce this update
+                let should_update = {
+                    let mut last_time = self.last_update_time.lock().unwrap();
+                    let now = Instant::now();
+                    
+                    if let Some(last) = *last_time {
+                        if now.duration_since(last) < self.debounce_duration {
+                            debug_log("MQTT: Debouncing price update - too soon since last update");
+                            false
+                        } else {
+                            *last_time = Some(now);
+                            true
+                        }
+                    } else {
+                        *last_time = Some(now);
+                        true
+                    }
+                };
+                
+                if should_update {
+                    *self.latest_prices.lock().unwrap() = Some(crypto_data.clone());
+                    debug_log(&format!("MQTT: *** CACHED {} CRYPTOCURRENCIES ***", crypto_data.len()));
+                    info!("MQTT: Updated latest prices from broker");
+                    
+                    // Trigger callback to notify iOS of price update
+                    if let Some(callback) = *self.price_update_callback.lock().unwrap() {
+                        debug_log("MQTT: Triggering iOS callback for price update");
+                        callback(std::ptr::null());
+                    } else {
+                        debug_log("MQTT: No callback registered, price update not sent to iOS");
+                    }
                 } else {
-                    debug_log("MQTT: No callback registered, price update not sent to iOS");
+                    debug_log("MQTT: Skipped price update due to debouncing");
                 }
             }
             Err(e) => {
