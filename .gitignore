@@ -1,5 +1,6 @@
 /.env.server
 crates/server/.env.server
+crates/server/.env.server*
 .idea/
 /target
 /ios_app/RustHelloApp.xcodeproj

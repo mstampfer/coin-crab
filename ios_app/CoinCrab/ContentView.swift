@@ -62,6 +62,8 @@ class CryptoDataManager: ObservableObject {
     @Published var errorMessage: String?
     @Published var lastUpdated: String?
     @Published var isDataCached = false
+    @Published var connectionStatus: String = "Connecting..."
+    @Published var isConnected = false
     
     private var refreshTimer: Timer?
     private var retryAttempts = 0
@@ -80,6 +82,7 @@ class CryptoDataManager: ObservableObject {
         print("fetchCryptoPrices: Calling Rust get_crypto_data() function (attempt \(retryAttempts + 1)/\(maxRetryAttempts))")
         isLoading = true
         errorMessage = nil
+        connectionStatus = "Connecting to server... (attempt \(retryAttempts + 1)/\(maxRetryAttempts))"
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
@@ -109,6 +112,8 @@ class CryptoDataManager: ObservableObject {
                         self.isDataCached = result.cached
                         self.errorMessage = nil
                         self.isLoading = false
+                        self.connectionStatus = "Connected"
+                        self.isConnected = true
                         print("SUCCESS: Updated \(data.count) cryptocurrencies from Rust")
                     } else {
                         // Handle error with retry logic
@@ -339,7 +344,7 @@ struct MarketsView: View {
                     CoinListHeaderView()
                     
                     if cryptoManager.isLoading && cryptoManager.cryptocurrencies.isEmpty {
-                        LoadingStateView(errorMessage: cryptoManager.errorMessage)
+                        LoadingStateView(errorMessage: cryptoManager.errorMessage, connectionStatus: cryptoManager.connectionStatus)
                     } else if cryptoManager.cryptocurrencies.isEmpty && !cryptoManager.isLoading {
                         EmptyStateView()
                     } else {
@@ -853,6 +858,7 @@ class ClientConfig {
             print("ClientConfig: .env.client not found in bundle, using defaults")
             // Set defaults if file not found
             config["MQTT_BROKER_HOST"] = "127.0.0.1"
+            config["HTTPS_ICON_HOST"] = "127.0.0.1"
             config["HTTP_ICON_PORT"] = "8080"
             return
         }
@@ -887,6 +893,7 @@ class ClientConfig {
             print("ClientConfig: Error reading .env.client: \(error)")
             // Set defaults on error
             config["MQTT_BROKER_HOST"] = "127.0.0.1"
+            config["HTTPS_ICON_HOST"] = "127.0.0.1"
             config["HTTP_ICON_PORT"] = "8080"
         }
     }
@@ -907,6 +914,10 @@ class ClientConfig {
             return port
         }
         return 8080
+    }
+    
+    var httpsIconHost: String {
+        return config["HTTPS_ICON_HOST"] ?? "127.0.0.1"
     }
 }
 
@@ -1006,9 +1017,8 @@ struct CryptoIcon: View {
     }
     
     private func loadIconFromServer() {
-        let serverHost = ClientConfig.shared.serverHost
-        let iconPort = ClientConfig.shared.httpIconPort
-        guard let url = URL(string: "http://\(serverHost):\(iconPort)/api/logo/\(symbol)") else {
+        let httpsHost = ClientConfig.shared.httpsIconHost
+        guard let url = URL(string: "https://\(httpsHost)/api/logo/\(symbol)") else {
             print("CryptoIcon: Invalid URL for symbol \(symbol)")
             IconCache.shared.markFailed(for: symbol)
             isLoading = false
@@ -1127,6 +1137,7 @@ struct MiniChartView: View {
 
 struct LoadingStateView: View {
     let errorMessage: String?
+    let connectionStatus: String
     
     var body: some View {
         VStack(spacing: 20) {
@@ -1146,7 +1157,7 @@ struct LoadingStateView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 20)
             } else {
-                Text("Connecting to MQTT broker...")
+                Text(connectionStatus)
                     .font(.caption)
                     .foregroundColor(.gray)
                     .multilineTextAlignment(.center)

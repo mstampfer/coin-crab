@@ -49,7 +49,7 @@ impl MQTTClient {
         let historical_data = Arc::new(Mutex::new(HashMap::new()));
         let is_connected = Arc::new(Mutex::new(false));
         let connection_attempts = Arc::new(Mutex::new(0));
-        let max_retry_attempts = 3;
+        let max_retry_attempts = 5;  // Increased from 3 to handle slower connections
         let price_update_callback = Arc::new(Mutex::new(None));
         
         // Start the connection manager event loop

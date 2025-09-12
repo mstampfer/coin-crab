@@ -43,9 +43,28 @@ pub extern "C" fn get_crypto_data() -> *mut c_char {
                 }
             }
             
-            // Give MQTT time to connect and receive initial data (reduced from 5s to 2s)
+            // Give MQTT more time to connect and receive initial data
             debug_log("get_crypto_data: Waiting for MQTT connection and initial data...");
-            std::thread::sleep(Duration::from_millis(2000));
+            
+            // Poll for connection with timeout
+            let start_time = std::time::Instant::now();
+            let timeout = Duration::from_secs(5);
+            
+            loop {
+                if let Some(ref client) = *MQTT_CLIENT.lock().unwrap() {
+                    if client.is_connected() || client.get_latest_prices().is_some() {
+                        debug_log("get_crypto_data: MQTT connected or has cached data");
+                        break;
+                    }
+                }
+                
+                if start_time.elapsed() > timeout {
+                    debug_log("get_crypto_data: Timeout waiting for MQTT connection");
+                    break;
+                }
+                
+                std::thread::sleep(Duration::from_millis(100));
+            }
         } else {
             debug_log("get_crypto_data: Using existing MQTT client");
         }
