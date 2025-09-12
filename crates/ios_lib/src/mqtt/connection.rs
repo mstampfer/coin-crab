@@ -121,9 +121,9 @@ impl ConnectionManager {
         let mut attempts = connection_attempts.lock().unwrap();
         *attempts += 1;
         
-        if *attempts <= 3 {
-            // Exponential backoff: 2^attempt seconds (2, 4, 8 seconds)
-            let delay_secs = 2u64.pow(*attempts - 1);
+        if *attempts <= 5 {
+            // Exponential backoff: 2^attempt seconds (2, 4, 8, 16, 32 seconds)
+            let delay_secs = 2u64.pow((*attempts - 1).min(5));  // Cap at 32 seconds
             debug_log(&format!("MQTT: Connection attempt {} failed, retrying in {} seconds", attempts, delay_secs));
             drop(attempts); // Release the lock before sleeping
             tokio::time::sleep(Duration::from_secs(delay_secs)).await;
