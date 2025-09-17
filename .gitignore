@@ -13,6 +13,7 @@ ios_app/DerivedData/
 # Xcode user-specific files
 ios_app/*.xcodeproj/project.xcworkspace/xcuserdata/
 ios_app/*.xcodeproj/xcuserdata/
+.periphery.yml
 
 # Test files
 *test*

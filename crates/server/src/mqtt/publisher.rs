@@ -18,22 +18,6 @@ pub async fn publish_crypto_data_to_mqtt(mqtt_client: &AsyncClient, crypto_data:
     } else {
         info!("Published {} cryptocurrencies to MQTT topic crypto/prices/latest", crypto_data.len());
     }
-    
-    // Publish individual symbol updates
-    for crypto in crypto_data {
-        let individual_payload = match serde_json::to_string(crypto) {
-            Ok(json) => json,
-            Err(e) => {
-                error!("Failed to serialize {} for MQTT: {}", crypto.symbol, e);
-                continue;
-            }
-        };
-        
-        let topic = format!("crypto/prices/{}", crypto.symbol);
-        if let Err(e) = mqtt_client.publish(topic, QoS::AtLeastOnce, true, individual_payload).await {
-            error!("Failed to publish to crypto/prices/{}: {}", crypto.symbol, e);
-        }
-    }
 }
 
 pub async fn publish_historical_data_to_mqtt(
@@ -66,6 +50,27 @@ pub async fn publish_empty_retained_message(mqtt_client: &AsyncClient, topic: &s
         Ok(_) => info!("Cleared MQTT retained message for topic: {}", topic),
         Err(e) => warn!("Failed to clear MQTT retained message for {}: {}", topic, e),
     }
+}
+
+pub async fn clear_all_retained_messages(mqtt_client: &AsyncClient) {
+    info!("Clearing all retained MQTT messages on broker startup...");
+
+    // Clear the main crypto prices topic
+    publish_empty_retained_message(mqtt_client, "crypto/prices/latest").await;
+
+    // Clear historical data topics - we need to clear known patterns
+    // Since we can't use wildcards in publish, clear common historical topics
+    let historical_symbols = vec!["BTC", "ETH", "ADA", "DOT", "SOL", "MATIC", "AVAX", "ATOM"];
+    let timeframes = vec!["1h", "24h", "7d", "30d"];
+
+    for symbol in &historical_symbols {
+        for timeframe in &timeframes {
+            let topic = format!("crypto/historical/{}/{}", symbol, timeframe);
+            publish_empty_retained_message(mqtt_client, &topic).await;
+        }
+    }
+
+    info!("Completed clearing retained MQTT messages");
 }
 
 #[cfg(test)]

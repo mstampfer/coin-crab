@@ -19,7 +19,7 @@ mod data;
 use types::AppState;
 use config::ServerConfig;
 use handlers::{get_prices, health_check, get_historical_data, get_cmc_mapping, get_crypto_logo};
-use mqtt::{setup_mqtt_broker, setup_mqtt_request_handling};
+use mqtt::{setup_mqtt_broker, setup_mqtt_request_handling, clear_all_retained_messages};
 use data::{fetch_data_periodically, clear_mqtt_cache_periodically, fetch_cmc_mapping};
 
 #[actix_web::main]
@@ -33,10 +33,15 @@ async fn main() -> std::io::Result<()> {
     // Setup logging
     config.setup_logging();
     
-    // Setup MQTT broker and client  
+    // Setup MQTT broker and client
     let mqtt_client = match setup_mqtt_broker(&config.mqtt_broker_host, config.mqtt_broker_port).await {
         Ok(client) => {
             info!("MQTT broker and client setup complete");
+
+            // Clear any retained messages from previous sessions
+            info!("Clearing retained messages from broker...");
+            clear_all_retained_messages(&client).await;
+
             client
         }
         Err(e) => {

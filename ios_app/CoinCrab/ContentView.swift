@@ -75,7 +75,9 @@ class CryptoDataManager: ObservableObject {
         print("fetchCryptoPrices: Calling Rust get_crypto_data() function (attempt \(retryAttempts + 1)/\(maxRetryAttempts))")
         isLoading = true
         errorMessage = nil
-        connectionStatus = "Connecting to server... (attempt \(retryAttempts + 1)/\(maxRetryAttempts))"
+        // Log connection attempt but don't show in UI
+        print("fetchCryptoPrices: Connecting to server... (attempt \(retryAttempts + 1)/\(maxRetryAttempts))")
+        connectionStatus = ""
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
@@ -864,29 +866,24 @@ struct MiniChartView: View {
 struct LoadingStateView: View {
     let errorMessage: String?
     let connectionStatus: String
-    
+
     var body: some View {
         VStack(spacing: 20) {
             ProgressView()
                 .progressViewStyle(CircularProgressViewStyle(tint: .blue))
                 .scaleEffect(1.5)
-            
+
             Text("Loading crypto prices...")
                 .font(.title2)
                 .fontWeight(.medium)
                 .foregroundColor(.white)
-            
+
             if let errorMessage = errorMessage, !errorMessage.isEmpty {
                 Text(errorMessage)
                     .font(.caption)
-                    .foregroundColor(.gray)
+                    .foregroundColor(.orange)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 20)
-            } else {
-                Text(connectionStatus)
-                    .font(.caption)
-                    .foregroundColor(.gray)
-                    .multilineTextAlignment(.center)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
