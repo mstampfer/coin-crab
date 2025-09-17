@@ -4,13 +4,12 @@ A professional iOS cryptocurrency tracking app built with Rust and SwiftUI, feat
 
 <div align="center">
 
-(https://github.com/mstampfer/coin-crab/actions/workflows/deploy-server.yml)
 [![Rust](https://img.shields.io/badge/Rust-1.70+-red.svg)](https://rust-lang.org/)
 [![Swift](https://img.shields.io/badge/Swift-5.9-orange.svg)](https://swift.org/)
 [![iOS](https://img.shields.io/badge/iOS-17.0+-blue.svg)](https://developer.apple.com/ios/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Discord](https://img.shields.io/badge/discord-Join%20Chat-7289da?logo=discord&logoColor=white)](https://discord.gg/qqpcR5J3)
-[![Build Status](https://github.com/mstampfer/coin-crab/actions/workflows/deploy-server.yml/badge.svg)]
+[![Build Status](https://github.com/mstampfer/coin-crab/actions/workflows/deploy-server.yml/badge.svg)](https://github.com/mstampfer/coin-crab/actions/workflows/deploy-server.yml)
 
 </div>
 
