@@ -15,7 +15,7 @@ A professional iOS cryptocurrency tracking app built with Rust and SwiftUI, feat
 
 ## Features
 
-### ** NEW: Professional TradingView Charts**
+### **NEW: Professional TradingView Charts**
 - **TradingView Lightweight Charts**: Enterprise-grade charting with v5.0 API
 - **Volume Histogram**: Trading volume displayed as color-coded bars (green/red based on price movement)
 - **Multiple Timeframes**: 1H, 24H, 7D, 30D, 90D, 1Y, All - all visible without scrolling
@@ -42,7 +42,7 @@ A professional iOS cryptocurrency tracking app built with Rust and SwiftUI, feat
 - **Mini Charts**: Price trend visualizations for each coin
 - **Professional Layout**: Ranking, market caps, and percentage changes
 
-### ** Rust Workspace Architecture**
+### **Rust Workspace Architecture**
 - **Modular Design**: All crates use clean module architecture for maintainability
 - **Separate Deployments**: Independent server and client builds
 - **Workspace Structure**: Organized into `server`, `ios_lib`, and `shared` crates
