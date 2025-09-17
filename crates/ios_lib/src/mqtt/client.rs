@@ -1,6 +1,5 @@
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
-use std::time::Duration;
 use std::os::raw::c_void;
 use tokio::runtime::Runtime;
 use rumqttc::{AsyncClient, QoS};
@@ -9,7 +8,6 @@ use crate::config::Config;
 use crate::types::{CryptoCurrency, HistoricalDataResult};
 use shared::debug_log;
 use super::connection::ConnectionManager;
-use super::message_handler::MessageHandler;
 
 // Callback function type for notifying iOS of price updates
 pub type PriceUpdateCallback = extern "C" fn(*const c_void);
@@ -78,10 +76,27 @@ impl MQTTClient {
     }
     
     pub fn connect(&self) -> Result<(), String> {
-        // Connection is established automatically when the event loop starts polling
-        // The event loop will handle ConnAck and subscribe to topics
-        debug_log("MQTT: Connection will be established by event loop");
-        Ok(())
+        debug_log("MQTT: Starting synchronous connection...");
+
+        // Wait for connection to be established with timeout
+        let start_time = std::time::Instant::now();
+        let timeout = std::time::Duration::from_secs(3); // 3 second timeout for connection
+
+        while start_time.elapsed() < timeout {
+            if self.is_connected() {
+                debug_log("MQTT: Connection established successfully");
+                return Ok(());
+            }
+            // Small delay to avoid busy polling
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+
+        // If we get here, connection timed out
+        let attempts = self.get_connection_attempts();
+        let error_msg = format!("MQTT connection timeout after {:.1}s ({} attempts)",
+            timeout.as_secs_f32(), attempts);
+        debug_log(&error_msg);
+        Err(error_msg)
     }
     
     pub fn get_latest_prices(&self) -> Option<Vec<CryptoCurrency>> {

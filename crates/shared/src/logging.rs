@@ -3,25 +3,18 @@ use std::io::Write;
 // Utility functions for logging across crates
 
 pub fn debug_log(message: &str) {
-    // ALWAYS log to console for debugging
-    println!("[DEBUG] {}", message);
-    eprintln!("[DEBUG-CONSOLE] {}", message);
-    
-    // Check environment variable for logging level
-    let log_level = std::env::var("LOG_LEVEL").unwrap_or_else(|_| "INFO".to_string());
-    eprintln!("[ENV-CHECK] LOG_LEVEL = '{}'", log_level);
-    
-    // Always try to write to file for debugging
+    // Log to console for debugging
+    println!("{}", message);
+
+    // Write to file for debugging
     let log_path = if cfg!(target_os = "ios") {
         // Try to get iOS Documents directory
         let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-        let path = format!("{}/Documents/debug.log", home);
-        eprintln!("[FILE-PATH] Trying to write to: {}", path);
-        path
+        format!("{}/Documents/debug.log", home)
     } else {
         "debug.log".to_string()
     };
-    
+
     if let Ok(mut file) = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -29,16 +22,13 @@ pub fn debug_log(message: &str) {
     {
         let timestamp = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
         writeln!(file, "[{}] {}", timestamp, message).ok();
-        eprintln!("[FILE-SUCCESS] Wrote to debug log file");
-    } else {
-        eprintln!("[FILE-FAILED] Could not write to debug log at: {}", log_path);
     }
 }
 
 pub fn init_logging() {
     // Initialize logging based on environment variables
     let log_level = std::env::var("LOG_LEVEL").unwrap_or_else(|_| "INFO".to_string());
-    
+
     let level_filter = match log_level.to_uppercase().as_str() {
         "OFF" => log::LevelFilter::Off,
         "ERROR" => log::LevelFilter::Error,
@@ -48,12 +38,17 @@ pub fn init_logging() {
         "TRACE" => log::LevelFilter::Trace,
         _ => log::LevelFilter::Info,
     };
-    
+
     env_logger::Builder::from_default_env()
         .filter_level(level_filter)
         .init();
-        
-    debug_log("Logging system initialized");
+
+    // Print log path once at startup
+    if cfg!(target_os = "ios") {
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        let log_path = format!("{}/Documents/debug.log", home);
+        println!("Debug log: {}", log_path);
+    }
 }
 
 #[cfg(test)]

@@ -737,20 +737,4 @@ struct TradingViewChartView: UIViewRepresentable {
     }
 }
 
-// MARK: - Preview
-struct TradingViewChartView_Previews: PreviewProvider {
-    static var previews: some View {
-        let sampleData = [
-            ChartDataPoint(timestamp: 1640995200, price: 47000.0, volume: 25000000000),
-            ChartDataPoint(timestamp: 1641081600, price: 47500.0, volume: 27000000000),
-            ChartDataPoint(timestamp: 1641168000, price: 46800.0, volume: 22000000000),
-            ChartDataPoint(timestamp: 1641254400, price: 48200.0, volume: 30000000000),
-            ChartDataPoint(timestamp: 1641340800, price: 49100.0, volume: 28000000000),
-        ]
-        
-        TradingViewChartView(data: sampleData, isPositive: true, timeframe: "24h")
-            .frame(height: 300)
-            .background(Color.black)
-            .previewLayout(.sizeThatFits)
-    }
-}
+

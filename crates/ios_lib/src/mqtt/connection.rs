@@ -24,10 +24,10 @@ impl ConnectionManager {
     
     pub fn create_client(&self) -> Result<(AsyncClient, EventLoop), String> {
         let mut mqttoptions = MqttOptions::new("rust-ios-client", &self.config.broker_host, self.config.broker_port);
-        mqttoptions.set_keep_alive(Duration::from_secs(60)); // Match working client
-        mqttoptions.set_clean_session(false); // Match working client 
+        mqttoptions.set_keep_alive(Duration::from_secs(60));
+        mqttoptions.set_clean_session(true); // Use clean session for faster connections
         mqttoptions.set_max_packet_size(102400, 102400); // Match broker config
-        debug_log(&format!("MQTT: Configured MQTT options for {}:{} (keep_alive=60s, clean_session=false, max_packet=102400)", 
+        debug_log(&format!("MQTT: Configured MQTT options for {}:{} (keep_alive=60s, clean_session=true, max_packet=102400)",
             self.config.broker_host, self.config.broker_port));
         
         let (client, eventloop) = AsyncClient::new(mqttoptions, 10);
@@ -92,10 +92,6 @@ impl ConnectionManager {
         debug_log("MQTT: Subscribing to crypto/prices/latest");
         if let Err(e) = client.subscribe("crypto/prices/latest", QoS::AtLeastOnce).await {
             debug_log(&format!("MQTT: Failed to subscribe to latest prices: {}", e));
-        }
-        debug_log("MQTT: Subscribing to crypto/prices/+");
-        if let Err(e) = client.subscribe("crypto/prices/+", QoS::AtLeastOnce).await {
-            debug_log(&format!("MQTT: Failed to subscribe to individual prices: {}", e));
         }
         debug_log("MQTT: Subscribing to crypto/historical/+/+");
         if let Err(e) = client.subscribe("crypto/historical/+/+", QoS::AtMostOnce).await {

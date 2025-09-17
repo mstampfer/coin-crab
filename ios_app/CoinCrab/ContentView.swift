@@ -48,13 +48,6 @@ struct CryptoClientResult: Codable {
     let cached: Bool
 }
 
-// Server response structure (matches server.rs ApiResponse)
-struct ApiResponse: Codable {
-    let data: [CryptoCurrency]
-    let last_updated: String
-    let cached: Bool
-}
-
 // MARK: - Simplified Data Manager using Rust FFI delegation
 class CryptoDataManager: ObservableObject {
     @Published var cryptocurrencies: [CryptoCurrency] = []
@@ -82,7 +75,9 @@ class CryptoDataManager: ObservableObject {
         print("fetchCryptoPrices: Calling Rust get_crypto_data() function (attempt \(retryAttempts + 1)/\(maxRetryAttempts))")
         isLoading = true
         errorMessage = nil
-        connectionStatus = "Connecting to server... (attempt \(retryAttempts + 1)/\(maxRetryAttempts))"
+        // Log connection attempt but don't show in UI
+        print("fetchCryptoPrices: Connecting to server... (attempt \(retryAttempts + 1)/\(maxRetryAttempts))")
+        connectionStatus = ""
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
@@ -153,23 +148,6 @@ class CryptoDataManager: ObservableObject {
             self.isLoading = false
             self.retryAttempts = 0 // Reset for next manual refresh
         }
-    }
-    
-    private func startPeriodicRefresh() {
-        // Initial fetch
-        fetchCryptoPrices()
-        
-        // Set up timer for periodic refresh (every 30 seconds)
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
-            print("Timer triggered - calling Rust for crypto prices")
-            self?.fetchCryptoPrices()
-        }
-    }
-    
-    func manualRefresh() {
-        print("Manual refresh requested - calling Rust")
-        retryAttempts = 0 // Reset retry counter for manual refresh
-        fetchCryptoPrices()
     }
     
     private func setupRealTimeUpdates() {
@@ -379,250 +357,6 @@ struct MarketsView: View {
             .sheet(isPresented: $showingAccount) {
                 AccountView()
             }
-        }
-    }
-}
-
-struct MarketStatsHeaderView: View {
-    var body: some View {
-        HStack(spacing: 12) {
-            MarketStatCard(title: "Market Cap", value: "$3.90T", change: "2.17%", isPositive: true)
-            MarketStatCard(title: "CMC100", value: "$241.93", change: "2.40%", isPositive: true)
-            MarketStatCard(title: "Altcoin Index", value: "44", subtitle: "/100", showSlider: true)
-            FearGreedCard(value: 47)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-    }
-}
-
-struct MarketStatCard: View {
-    let title: String
-    let value: String
-    let change: String?
-    let isPositive: Bool
-    let subtitle: String?
-    let showSlider: Bool
-    
-    init(title: String, value: String, change: String? = nil, isPositive: Bool = true, subtitle: String? = nil, showSlider: Bool = false) {
-        self.title = title
-        self.value = value
-        self.change = change
-        self.isPositive = isPositive
-        self.subtitle = subtitle
-        self.showSlider = showSlider
-    }
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.caption)
-                .foregroundColor(.gray)
-            
-            HStack(spacing: 2) {
-                Text(value)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
-                if let subtitle = subtitle {
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-            }
-            
-            if let change = change {
-                HStack(spacing: 2) {
-                    Image(systemName: isPositive ? "arrowtriangle.up.fill" : "arrowtriangle.down.fill")
-                        .font(.system(size: 8))
-                    Text(change)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                }
-                .foregroundColor(isPositive ? .green : .red)
-            }
-            
-            if showSlider {
-                HStack(spacing: 0) {
-                    Rectangle()
-                        .fill(Color.orange)
-                        .frame(width: 20, height: 3)
-                    Rectangle()
-                        .fill(Color.blue)
-                        .frame(width: 30, height: 3)
-                }
-                .cornerRadius(2)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Color.gray.opacity(0.1))
-        .cornerRadius(12)
-    }
-}
-
-struct FearGreedCard: View {
-    let value: Int
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Fear & Greed")
-                .font(.caption)
-                .foregroundColor(.gray)
-            
-            HStack {
-                ZStack {
-                    Circle()
-                        .stroke(Color.gray.opacity(0.3), lineWidth: 3)
-                        .frame(width: 30, height: 30)
-                    
-                    Circle()
-                        .trim(from: 0, to: CGFloat(value) / 100)
-                        .stroke(value > 50 ? Color.green : Color.red, lineWidth: 3)
-                        .frame(width: 30, height: 30)
-                        .rotationEffect(.degrees(-90))
-                }
-                
-                VStack(alignment: .leading) {
-                    Text("\(value)")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.white)
-                    Text(value > 50 ? "Greed" : "Fear")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Color.gray.opacity(0.1))
-        .cornerRadius(12)
-    }
-}
-
-struct MarketInsightsView: View {
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                MarketInsightCard(icon: "brain", text: "Why is the market up today?")
-                MarketInsightCard(icon: "brain", text: "Are altcoins outperforming?")
-            }
-            .padding(.horizontal, 16)
-        }
-        .padding(.vertical, 8)
-    }
-}
-
-struct MarketInsightCard: View {
-    let icon: String
-    let text: String
-    
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .foregroundColor(.blue)
-                .font(.system(size: 16))
-            
-            Text(text)
-                .font(.system(size: 14))
-                .foregroundColor(.white)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color.gray.opacity(0.1))
-        .cornerRadius(20)
-    }
-}
-
-struct CoinTabNavigationView: View {
-    @Binding var selectedTab: String
-    let tabs = ["Coins", "Watchlists", "DexScan", "Overview", "Yield"]
-    
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 0) {
-                ForEach(tabs, id: \.self) { tab in
-                    Button(action: { selectedTab = tab }) {
-                        VStack(spacing: 8) {
-                            Text(tab)
-                                .font(.system(size: 16, weight: selectedTab == tab ? .semibold : .regular))
-                                .foregroundColor(selectedTab == tab ? .blue : .gray)
-                            
-                            Rectangle()
-                                .fill(selectedTab == tab ? Color.blue : Color.clear)
-                                .frame(height: 2)
-                        }
-                    }
-                    .frame(minWidth: 80)
-                    .padding(.horizontal, 8)
-                }
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-    }
-}
-
-struct FilterControlsView: View {
-    @Binding var selectedCurrency: String
-    @Binding var selectedSort: String
-    @Binding var selectedCategory: String
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            FilterButton(title: selectedCurrency, subtitle: "/ BTC")
-            FilterButton(title: selectedSort, hasDropdown: true)
-            FilterButton(title: selectedCategory, hasDropdown: true)
-            
-            Spacer()
-            
-            Button(action: {}) {
-                Image(systemName: "line.horizontal.3.decrease")
-                    .foregroundColor(.white)
-                    .font(.system(size: 16))
-                    .padding(8)
-                    .background(Color.gray.opacity(0.2))
-                    .cornerRadius(8)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-    }
-}
-
-struct FilterButton: View {
-    let title: String
-    let subtitle: String?
-    let hasDropdown: Bool
-    
-    init(title: String, subtitle: String? = nil, hasDropdown: Bool = false) {
-        self.title = title
-        self.subtitle = subtitle
-        self.hasDropdown = hasDropdown
-    }
-    
-    var body: some View {
-        Button(action: {}) {
-            HStack(spacing: 4) {
-                Text(title)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.white)
-                
-                if let subtitle = subtitle {
-                    Text(subtitle)
-                        .font(.system(size: 14))
-                        .foregroundColor(.gray)
-                }
-                
-                if hasDropdown {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 12))
-                        .foregroundColor(.gray)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color.gray.opacity(0.2))
-            .cornerRadius(8)
         }
     }
 }
@@ -948,12 +682,6 @@ class IconCache {
     func hasFailed(for symbol: String) -> Bool {
         return failedSymbols.contains(symbol.uppercased())
     }
-    
-    func clearCache() {
-        cache.removeAll()
-        failedSymbols.removeAll()
-        print("IconCache: Cleared all cached data")
-    }
 }
 
 struct CryptoIcon: View {
@@ -1138,29 +866,24 @@ struct MiniChartView: View {
 struct LoadingStateView: View {
     let errorMessage: String?
     let connectionStatus: String
-    
+
     var body: some View {
         VStack(spacing: 20) {
             ProgressView()
                 .progressViewStyle(CircularProgressViewStyle(tint: .blue))
                 .scaleEffect(1.5)
-            
+
             Text("Loading crypto prices...")
                 .font(.title2)
                 .fontWeight(.medium)
                 .foregroundColor(.white)
-            
+
             if let errorMessage = errorMessage, !errorMessage.isEmpty {
                 Text(errorMessage)
                     .font(.caption)
-                    .foregroundColor(.gray)
+                    .foregroundColor(.orange)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 20)
-            } else {
-                Text(connectionStatus)
-                    .font(.caption)
-                    .foregroundColor(.gray)
-                    .multilineTextAlignment(.center)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

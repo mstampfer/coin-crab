@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 // Re-export shared types for convenience
-pub use shared::{CryptoCurrency, Quote, UsdQuote, HistoricalDataPoint, HistoricalDataResult};
+pub use shared::{CryptoCurrency, HistoricalDataResult};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiResponse {

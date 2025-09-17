@@ -1,5 +1,5 @@
 use std::ffi::{CStr, CString};
-use std::os::raw::{c_char, c_void};
+use std::os::raw::c_char;
 use std::time::Duration;
 use tokio::runtime::Runtime;
 
@@ -43,28 +43,11 @@ pub extern "C" fn get_crypto_data() -> *mut c_char {
                 }
             }
             
-            // Give MQTT more time to connect and receive initial data
-            debug_log("get_crypto_data: Waiting for MQTT connection and initial data...");
-            
-            // Poll for connection with timeout
-            let start_time = std::time::Instant::now();
-            let timeout = Duration::from_secs(5);
-            
-            loop {
-                if let Some(ref client) = *MQTT_CLIENT.lock().unwrap() {
-                    if client.is_connected() || client.get_latest_prices().is_some() {
-                        debug_log("get_crypto_data: MQTT connected or has cached data");
-                        break;
-                    }
-                }
-                
-                if start_time.elapsed() > timeout {
-                    debug_log("get_crypto_data: Timeout waiting for MQTT connection");
-                    break;
-                }
-                
-                std::thread::sleep(Duration::from_millis(100));
-            }
+            // Connection is now verified in connect() method, wait briefly for data to arrive
+            debug_log("get_crypto_data: Connection established, waiting for data...");
+
+            // Brief wait for retained messages to arrive
+            std::thread::sleep(Duration::from_millis(200));
         } else {
             debug_log("get_crypto_data: Using existing MQTT client");
         }

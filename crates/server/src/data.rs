@@ -8,73 +8,85 @@ use crate::mqtt::{publish_crypto_data_to_mqtt, publish_empty_retained_message};
 #[cfg(test)]
 use crate::mqtt::publish_historical_data_to_mqtt;
 use shared::{HistoricalDataPoint, HistoricalDataResult};
-pub async fn fetch_data_periodically(state: web::Data<AppState>) {
-    info!("Starting data fetch with interval: {} seconds ({} minutes)", 
-          state.update_interval_seconds, 
-          state.update_interval_seconds / 60);
-    let mut interval = time::interval(Duration::from_secs(state.update_interval_seconds));
-    
-    loop {
-        interval.tick().await;
-        
-        info!("Fetching data from CoinMarketCap API");
-        info!("Using API key: {}...", &state.api_key[..8.min(state.api_key.len())]);
-        
-        let response = state.client
-            .get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest")
-            .query(&[("limit", "100"), ("convert", "USD")])
-            .header("X-CMC_PRO_API_KEY", &state.api_key)
-            .header("Accept", "application/json")
-            .send()
-            .await;
-        
-        match response {
-            Ok(resp) => {
-                let status = resp.status();
-                if status.is_success() {
-                    match resp.json::<CoinMarketCapResponse>().await {
-                        Ok(cmc_data) => {
-                            info!("Successfully fetched {} cryptocurrencies", cmc_data.data.len());
-                            
-                            // Clone data for MQTT publishing before moving to cache
-                            let crypto_data_for_mqtt = cmc_data.data.clone();
-                            
-                            // Update cache (scoped to release locks before await)
-                            {
-                                let mut cache = state.cache.lock().unwrap();
-                                *cache = Some(cmc_data.data);
-                                
-                                let mut last_fetch = state.last_fetch.lock().unwrap();
-                                *last_fetch = SystemTime::now();
-                            }
-                            
-                            // Publish real market data to MQTT
-                            info!("Publishing MQTT update with all {} cryptocurrencies", crypto_data_for_mqtt.len());
-                            let _ = tokio::time::timeout(
-                                Duration::from_millis(100),
-                                publish_crypto_data_to_mqtt(&state.mqtt_client, &crypto_data_for_mqtt)
-                            ).await;
+
+async fn fetch_crypto_data(state: &web::Data<AppState>) {
+    info!("Fetching data from CoinMarketCap API");
+    info!("Using API key: {}...", &state.api_key[..8.min(state.api_key.len())]);
+
+    let response = state.client
+        .get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest")
+        .query(&[("limit", "100"), ("convert", "USD")])
+        .header("X-CMC_PRO_API_KEY", &state.api_key)
+        .header("Accept", "application/json")
+        .send()
+        .await;
+
+    match response {
+        Ok(resp) => {
+            let status = resp.status();
+            if status.is_success() {
+                match resp.json::<CoinMarketCapResponse>().await {
+                    Ok(cmc_data) => {
+                        info!("Successfully fetched {} cryptocurrencies", cmc_data.data.len());
+
+                        // Clone data for MQTT publishing before moving to cache
+                        let crypto_data_for_mqtt = cmc_data.data.clone();
+
+                        // Update cache (scoped to release locks before await)
+                        {
+                            let mut cache = state.cache.lock().unwrap();
+                            *cache = Some(cmc_data.data);
+
+                            let mut last_fetch = state.last_fetch.lock().unwrap();
+                            *last_fetch = SystemTime::now();
                         }
-                        Err(e) => {
-                            error!("Failed to parse CoinMarketCap response: {}", e);
-                        }
+
+                        // Publish real market data to MQTT
+                        info!("Publishing MQTT update with all {} cryptocurrencies", crypto_data_for_mqtt.len());
+                        let _ = tokio::time::timeout(
+                            Duration::from_millis(100),
+                            publish_crypto_data_to_mqtt(&state.mqtt_client, &crypto_data_for_mqtt)
+                        ).await;
                     }
-                } else {
-                    error!("CoinMarketCap API returned status: {}", status);
-                    if let Ok(error_text) = resp.text().await {
-                        error!("Error response: {}", error_text);
-                    }
-                    if status.as_u16() == 429 {
-                        warn!("Rate limit reached, using cached data");
-                    } else if status.as_u16() == 401 {
-                        error!("API key authentication failed - check your CMC_API_KEY");
+                    Err(e) => {
+                        error!("Failed to parse CoinMarketCap response: {}", e);
                     }
                 }
-            }
-            Err(e) => {
-                error!("Failed to fetch data from CoinMarketCap: {}", e);
+            } else {
+                error!("CoinMarketCap API returned status: {}", status);
+                if let Ok(error_text) = resp.text().await {
+                    error!("Error response: {}", error_text);
+                }
+                if status.as_u16() == 429 {
+                    warn!("Rate limit reached, using cached data");
+                } else if status.as_u16() == 401 {
+                    error!("API key authentication failed - check your CMC_API_KEY");
+                }
             }
         }
+        Err(e) => {
+            error!("Failed to fetch data from CoinMarketCap: {}", e);
+        }
+    }
+}
+
+pub async fn fetch_data_periodically(state: web::Data<AppState>) {
+    info!("Starting data fetch with interval: {} seconds ({} minutes)",
+          state.update_interval_seconds,
+          state.update_interval_seconds / 60);
+
+    // Fetch data immediately on startup before starting the interval timer
+    info!("Fetching initial data on startup...");
+    fetch_crypto_data(&state).await;
+
+    let mut interval = time::interval(Duration::from_secs(state.update_interval_seconds));
+
+    // Consume the first tick that fires immediately to avoid duplicate fetch
+    interval.tick().await;
+
+    loop {
+        interval.tick().await;
+        fetch_crypto_data(&state).await;
     }
 }
 

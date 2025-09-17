@@ -348,20 +348,29 @@ cargo build -p rust_ios_lib --target aarch64-apple-ios-sim --release
 cargo build --release --workspace
 ```
 
-#### Production Deployment (AWS EC2)
-The project includes automated CI/CD with GitHub Actions:
+#### Dual-Environment Deployment (AWS EC2)
+The project includes automated CI/CD with GitHub Actions for both UAT and Production:
 
 ```bash
-# Production deployment happens automatically on push to main
+# UAT deployment - triggers on push to uat branch
+git push origin uat
+
+# Production deployment - triggers on push to main branch  
 git push origin main
 ```
 
-**CI/CD Pipeline:**
-- **Automated Testing**: Runs all Rust server and shared crate tests
-- **Build Verification**: Ensures release build succeeds  
-- **AWS EC2 Deployment**: Deploys to production server (100.26.107.175)
-- **Health Checks**: Verifies MQTT broker is running on port 1883
-- **Zero Downtime**: Graceful server restart with process management
+**CI/CD Pipeline Features:**
+- ✅ **Dual Environment Support**: UAT and Production deployments
+- ✅ **HTTPS/SSL Security**: Let's Encrypt certificates with nginx reverse proxy
+- ✅ **Automated Testing**: Runs all Rust server and shared crate tests
+- ✅ **Build Verification**: Cross-compilation for ARM64 architecture
+- ✅ **Environment Isolation**: Separate folders and ports for UAT/Production
+- ✅ **Health Checks**: Verifies MQTT and HTTP API endpoints
+- ✅ **Zero Downtime**: Graceful server restart with process management
+
+**Environment Configuration:**
+- **Production**: `coincrab.duckdns.org` (HTTPS), MQTT:1883, HTTP:8080 → nginx:443
+- **UAT**: `uat-coincrab.duckdns.org` (HTTPS), MQTT:1882, HTTP:8079 → nginx:443
 
 **Server Management:**
 ```bash
