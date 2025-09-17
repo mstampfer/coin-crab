@@ -1,5 +1,5 @@
 use std::ffi::{CStr, CString};
-use std::os::raw::{c_char, c_void};
+use std::os::raw::c_char;
 use std::time::Duration;
 use tokio::runtime::Runtime;
 

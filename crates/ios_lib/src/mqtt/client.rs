@@ -1,6 +1,5 @@
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
-use std::time::Duration;
 use std::os::raw::c_void;
 use tokio::runtime::Runtime;
 use rumqttc::{AsyncClient, QoS};
@@ -9,7 +8,6 @@ use crate::config::Config;
 use crate::types::{CryptoCurrency, HistoricalDataResult};
 use shared::debug_log;
 use super::connection::ConnectionManager;
-use super::message_handler::MessageHandler;
 
 // Callback function type for notifying iOS of price updates
 pub type PriceUpdateCallback = extern "C" fn(*const c_void);

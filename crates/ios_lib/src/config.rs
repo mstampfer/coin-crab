@@ -86,8 +86,5 @@ impl Config {
         
         Ok(false)
     }
-    
-    pub fn broker_address(&self) -> String {
-        format!("{}:{}", self.broker_host, self.broker_port)
-    }
+   
 }
